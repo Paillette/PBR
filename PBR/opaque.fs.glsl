@@ -107,7 +107,7 @@ void main(void)
 	//const vec3 L[2] = vec3[2](normalize(vec3(0.3, 0., 0.8)), normalize(vec3(0.0, 0.0, -1.0)));
 	//const vec3 lightColor[2] = vec3[2](vec3(1.0, 1.0, 1.0), vec3(0.5, 0.5, 0.5));
 	
-	vec3 lightDir = normalize(vec3(.7, .9, -.2));
+	vec3 lightDir = normalize(vec3(.3, .0, .8));
 	vec3 lightColor = vec3(2.);
 	const float attenuation = 1.0;
 
@@ -118,8 +118,9 @@ void main(void)
 	vec4 baseTexel = texture2D(u_DiffuseTexture, v_TexCoords);
 	//Gamma
 	baseTexel.rgb = pow(baseTexel.rgb, vec3(2.2));
-	//vec3 baseColor = baseTexel.rgb;
-	vec3 baseColor = pow(vec3(0.6, 0.6, 0.6), vec3(2.2));
+	vec3 baseColor = baseTexel.rgb;
+	//whitout texture
+	//vec3 baseColor = pow(vec3(0.6, 0.6, 0.6), vec3(2.2));
 
 	vec3 halfVec = normalize(viewDir + lightDir);
 	float NdotH = clamp(dot(N, halfVec), 0., 1.);
@@ -127,6 +128,10 @@ void main(void)
 	float NdotV = clamp(dot(N, viewDir), 0., 1.);
 	float VdotH = clamp(dot(viewDir, halfVec), 0., 1.);
 	float LdotH = clamp(dot(lightDir, halfVec), 0., 1.0);
+
+	 float R = roughness * roughness;
+	 R = max(.01, R);
+ 	 float f0 = calculateF0(NdotL, NdotV, LdotH, R);
 
 	//NORMALE
 	vec3 T = normalize(v_Tangent.xyz);
@@ -140,18 +145,13 @@ void main(void)
 	vec3 ambientColor = baseColor * u_Material.AmbientColor;
 	vec3 indirectColor = ambientColor;
 
-	//---------------------------------------------------------PBR
-	
-	 float R = roughness * roughness;
-	 R = max(.01, R);
- 	 float f0 = calculateF0(NdotL, NdotV, LdotH, R);
 
 	//---------------------------------------------------Diffuse Color
 	 //if metallic == 1 : baseColor = 0.
      vec3 diffuseColor = baseColor * (1.0 - metallic);
 	 vec3 diffuse = vec3(0);
 	 diffuse += diffuseColor * lightColor * NdotL;
-	 //diffuse *= AO;
+	 diffuse *= AO;
 
 	 diffuse *= f0;
 
@@ -170,7 +170,8 @@ void main(void)
 	 FresnelFunction *=  SchlickIORFresnelFunction(ior, LdotH);
 
 	 vec3 specularity = lightColor * FresnelFunction * (SpecularDistribution * GeometricShadow * PI * NdotL);
-	 
+	 specularity *= clamp(pow(NdotV + AO, roughness * roughness) - 1. + AO, 0., 1.);
+
 	 //Light ending
 	 vec3 lightingModel = (diffuse + specularity);
 	 
