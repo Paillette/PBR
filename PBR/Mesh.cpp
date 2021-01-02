@@ -9,23 +9,17 @@
 #include "Mesh.h"
 #include "Texture.h"
 
-// materiau par defaut (couleur ambiante, couleur diffuse, couleur speculaire, shininess, tex ambient, tex diffuse, tex specular)
 Material Material::defaultMaterial = { { 0.f, 0.f, 0.f }, { 1.f, 1.f, 1.f }, { 0.f, 0.f, 0.f }, 256.f, 0, 1, 0 };
 
 void Mesh::Destroy()
 {
-	// On n'oublie pas de détruire les objets OpenGL
 	for (uint32_t i = 0; i < meshCount; i++)
 	{
-		// Comme les VBO ont ete "detruits" a l'initialisation
-		// seul le VAO contient une reference vers ces VBO/IBO
-		// detruire le VAO entraine donc la veritable destruction/deallocation des VBO/IBO
 		//DeleteBufferObject(meshes[i].VBO);
 		//DeleteBufferObject(meshes[i].IBO);
 		glDeleteVertexArrays(1, &meshes[i].VAO);
 		meshes[i].VAO = 0;
 	}
-	// on supprime le tableau de SubMesh
 	delete[] meshes;
 }
 
@@ -41,9 +35,7 @@ vec3 GetProperty3(FbxProperty property, FbxProperty factorProperty)
 	{
 		FbxDouble3 color = property.Get<FbxDouble3>();
 		if (factorProperty.IsValid()) {
-			// le facteur s’applique generalement sur la propriete (ici RGB) 
 			double factor = factorProperty.Get<FbxDouble>();
-			// il arrive que le facteur soit egal a zero, il faudrait je pense l'ignorer dans ce cas
 			factor = factor == 0 ? 1.0 : factor;
 			color[0] *= factor; color[1] *= factor; color[2] *= factor;
 		}
@@ -54,17 +46,11 @@ vec3 GetProperty3(FbxProperty property, FbxProperty factorProperty)
 
 void ParseMaterial(Material& mat, FbxNode* node)
 {
-	// Exemple simple de gestion des textures, on s'interesse ici surtout aux textures 
-	// diffuses (parfois appellees albedo maps, couleur primaire des fragment de l'objet)
-	// ATTENTION: les materiaux sont stockes dans le node et pas dans le mesh
 	int materialCount = node->GetMaterialCount();
 	if (materialCount)
 	{
-
-		// techniquement il faudrait dans certains cas boucler sur l'ensemble des materiaux
 		FbxSurfaceMaterial *fbx_material = node->GetMaterial(0);
 
-		// La propriete ‘diffuse’ contient une couleur, un facteur et une texture
 		const FbxProperty property_diff = fbx_material->FindProperty(FbxSurfaceMaterial::sDiffuse);
 		const FbxProperty factor_diff = fbx_material->FindProperty(FbxSurfaceMaterial::sDiffuseFactor);
 
@@ -74,21 +60,17 @@ void ParseMaterial(Material& mat, FbxNode* node)
 
 			const int textureCount = property_diff.GetSrcObjectCount<FbxFileTexture>();
 			if (textureCount) {
-				// techniquement il faudrait dans certains cas boucler selon textureCount
 				const FbxFileTexture* texture = property_diff.GetSrcObject<FbxFileTexture>(0);
 				if (texture)
 				{
-					// exemple de metadata que l'on peut recuperer
 					const char *name = texture->GetName();
 					const char *filename = texture->GetFileName();
 					const char *relativeFilename = texture->GetRelativeFileName();
-					// texture->GetUserDataPtr() peut etre utile, il permet a l’artiste d’y stocker des donnees custom
 					mat.diffuseTexture = Texture::LoadTexture(filename);
 				}
 			}
 		}
 
-		// La propriete ‘ambient’ contient une couleur, un facteur et une texture
 		const FbxProperty property_amb = fbx_material->FindProperty(FbxSurfaceMaterial::sAmbient);
 		const FbxProperty factor_amb = fbx_material->FindProperty(FbxSurfaceMaterial::sAmbientFactor);
 		if (property_amb.IsValid())
@@ -105,14 +87,12 @@ void ParseMaterial(Material& mat, FbxNode* node)
 			}
 		}
 
-		// La propriete ‘specular’ contient une couleur, un facteur et une texture ainsi que shininess
 		const FbxProperty property_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sSpecular);
 		const FbxProperty factor_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sSpecularFactor);
 		const FbxProperty property_shiny = fbx_material->FindProperty(FbxSurfaceMaterial::sShininess);
 		if (property_spec.IsValid())
 		{
 			mat.specularColor = GetProperty3(property_spec, factor_spec);
-			// reparametrage du facteur de brillance speculaire de [0-2048]
 			mat.shininess = GetProperty(property_shiny) * 1024.f;
 
 			const int textureCount = property_spec.GetSrcObjectCount<FbxFileTexture>();
@@ -133,13 +113,10 @@ void ParseMaterial(Material& mat, FbxNode* node)
 		{
 			const int textureCount = property_diff_normal.GetSrcObjectCount<FbxFileTexture>();
 			if (textureCount) {
-				// techniquement il faudrait dans certains cas boucler selon textureCount
 				const FbxFileTexture* texture = property_diff_normal.GetSrcObject<FbxFileTexture>(0);
 				if (texture)
 				{
-					// exemple de metadata que l'on peut recuperer
 					const char* filename = texture->GetFileName();
-					// texture->GetUserDataPtr() peut etre utile, il permet a l’artiste d’y stocker des donnees custom
 					mat.normalTexture = Texture::LoadTexture(filename);
 				}
 			}
@@ -150,7 +127,6 @@ void ParseMaterial(Material& mat, FbxNode* node)
 void AddMesh(Mesh* obj, FbxNode *node, FbxNode *parent)
 {
 	FbxMesh* mesh = node->GetMesh();
-	// preparation du mesh (clean, triangulation ....)
 	mesh->RemoveBadPolygons();
 	if (!mesh->IsTriangleMesh()) {
 
@@ -159,49 +135,38 @@ void AddMesh(Mesh* obj, FbxNode *node, FbxNode *parent)
 	SubMesh* submesh = &obj->meshes[obj->meshCount];
 	++obj->meshCount;
 
-	// si tous les meshes sont triangularises c'est ok...
-	// pour le moment on ne fait pas de deduplication, on stocke tout en brut
 	int vertexCount = mesh->GetPolygonCount() * 3;
 
-	// buffer temporaire, on va tout stocker côté GPU
 	Vertex* vertices = new Vertex[vertexCount];
 	submesh->verticesCount = 0;
 	uint32_t* indices = new uint32_t[vertexCount];
 	submesh->indicesCount = 0;
 
-
-	// Matrices geometriques, différentes pour chaque mesh ---
-
-	// etape 1. calcul de la matrice geometrique
 	FbxVector4 translation = node->GetGeometricTranslation(FbxNode::eSourcePivot);
 	FbxVector4 rotation = node->GetGeometricRotation(FbxNode::eSourcePivot);
 	FbxVector4 scaling = node->GetGeometricScaling(FbxNode::eSourcePivot);
 	FbxAMatrix geometryTransform;
 	geometryTransform.SetTRS(translation, rotation, scaling);
 
-	// etape 2. on recupere la matrice global (world) du mesh
 	const FbxAMatrix globalTransform = node->EvaluateGlobalTransform();
 
-	// etape 3. on concatene les deux matrices, ce qui donne la matrice world finale
 	FbxAMatrix finalGlobalTransform = globalTransform * geometryTransform;
 
-	// Metadata du mesh (canaux UVs ...)
 	FbxStringList nameListUV;
 	mesh->GetUVSetNames(nameListUV);
 	int totalUVChannels = nameListUV.GetCount();
 	
-	// on ne s'interesse qu'au premier canal UV
 	int uv_channel = 0;
 	const char *nameUV = nameListUV.GetStringAt(uv_channel);
 
-	int polyCount = mesh->GetPolygonCount();								// retourne le nombre de polygones
+	int polyCount = mesh->GetPolygonCount();							
 	for (int polyIndex = 0; polyIndex < polyCount; polyIndex++)
 	{
-		int polySize = mesh->GetPolygonSize(polyIndex);				// retourne le nombre de vertex par polygones
+		int polySize = mesh->GetPolygonSize(polyIndex);			
 
 		for (int vertexIndex = 0; vertexIndex < polySize; ++vertexIndex)
 		{
-			int controlPointIndex = mesh->GetPolygonVertex(polyIndex, vertexIndex);	//retourne l’id du v-ieme vertex du polygon p
+			int controlPointIndex = mesh->GetPolygonVertex(polyIndex, vertexIndex);
 			
 			FbxVector4 position = mesh->GetControlPointAt(controlPointIndex);
 
@@ -212,7 +177,6 @@ void AddMesh(Mesh* obj, FbxNode *node, FbxNode *parent)
 			FbxVector4 normal;
 			mesh->GetPolygonVertexNormal(polyIndex, vertexIndex, normal);
 
-			// on applique l'ensemble des transformations locales stockees dans les noeuds (scenegraph) au mesh
 			position = finalGlobalTransform.MultT(position);
 			normal = finalGlobalTransform.MultT(normal);
 			normal.Normalize();
@@ -220,10 +184,8 @@ void AddMesh(Mesh* obj, FbxNode *node, FbxNode *parent)
 			// Normal Map
 
 			// Tangents
-			// determine la presence de tangentes
 			FbxLayerElementTangent* meshTangents = mesh->GetElementTangent(0);
 			if (meshTangents == nullptr) {
-				// sinon on genere des tangentes (pour le tangent space normal mapping)
 				bool test = mesh->GenerateTangentsDataForAllUVSets(true);
 				meshTangents = mesh->GetElementTangent(0);
 			}
@@ -243,7 +205,6 @@ void AddMesh(Mesh* obj, FbxNode *node, FbxNode *parent)
 			//BiTangents
 			FbxLayerElementBinormal* meshBiTangents = mesh->GetElementBinormal(0);
 			if (meshBiTangents == nullptr) {
-				// sinon on genere des tangentes (pour le tangent space normal mapping)
 				bool test = mesh->GenerateTangentsDataForAllUVSets(true);
 				meshBiTangents = mesh->GetElementBinormal(0);
 			}
@@ -269,7 +230,6 @@ void AddMesh(Mesh* obj, FbxNode *node, FbxNode *parent)
 			};
 			submesh->verticesCount++;
 
-			// l'index buffer n'est pas vraiment utile actuellement
 			indices[submesh->indicesCount] = submesh->indicesCount;
 			submesh->indicesCount++;
 		}
@@ -283,13 +243,9 @@ void AddMesh(Mesh* obj, FbxNode *node, FbxNode *parent)
 	obj->materialCount++;
 
 	submesh->materialId = materialId;
-
-	// notez que je ne cree pas le VAO ici
-	// Un VAO fait le lien entre le VBO (+ EBO/IBO) et les attributs d'un vertex shader
 	submesh->VBO = CreateBufferObject(BufferType::VBO, sizeof(Vertex) * submesh->verticesCount, vertices);
 	submesh->IBO = CreateBufferObject(BufferType::IBO, sizeof(uint32_t) * submesh->indicesCount, indices);
 
-	// important, bien libérer la mémoire des buffers temporaires
 	delete[] indices;
 	delete[] vertices;
 }
@@ -306,8 +262,6 @@ void ProcessNode(Mesh* obj, FbxNode *node, FbxNode *parent)
 			AddMesh(obj, node, parent);
 			break;
 		case FbxNodeAttribute::eSkeleton:
-			// illustratif, nous traiterons du cas des squelettes dans une function spécifique
-			//AddJoint(node, parent);
 			break;
 		}
 	}

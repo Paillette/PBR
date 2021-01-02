@@ -5,24 +5,9 @@
 #include "OpenGLcore.h"
 #include <GLFW/glfw3.h>
 
-// les repertoires d'includes sont:
-// ../libs/glfw-3.3/include			fenetrage
-// ../libs/glew-2.1.0/include		extensions OpenGL
-// ../libs/stb						gestion des images (entre autre)
-
-// les repertoires des libs sont (en 64-bit):
-// ../libs/glfw-3.3/lib-vc2015
-// ../libs/glew-2.1.0/lib/Release/x64
-
-// Pensez a copier les dll dans le repertoire x64/Debug, cad:
-// glfw-3.3/lib-vc2015/glfw3.dll
-// glew-2.1.0/bin/Release/x64/glew32.dll		si pas GLEW_STATIC
-
-// _WIN32 indique un programme Windows
-// _MSC_VER indique la version du compilateur VC++
 #if defined(_WIN32) && defined(_MSC_VER)
 #pragma comment(lib, "glfw3dll.lib")
-#pragma comment(lib, "glew32.lib")			// glew32s.lib si GLEW_STATIC autrement glew32.lib
+#pragma comment(lib, "glew32.lib")
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "libfbxsdk.lib")
 #elif defined(__APPLE__)
@@ -162,9 +147,6 @@ struct Application
 			glVertexAttribPointer(positionLocation, 2, GL_FLOAT, false, sizeof(vec2), 0);
 			glEnableVertexAttribArray(positionLocation);
 
-			// maintenant que le VAO a enregistre le detail des attributs ainsi que la reference du VBO
-			// on peut supprimer ce dernier car il ne nous servira plus de maniere explicite
-			// attention a toujours desactiver les VAO avant d'agir sur un BO
 			glBindVertexArray(0);
 			DeleteBufferObject(vbo);
 		}
@@ -213,15 +195,6 @@ struct Application
 		matricesMat[2] = perspective;
 		glUnmapBuffer(GL_UNIFORM_BUFFER);
 
-		//attribution des locations sur les matrices => plus besoin grace à l'ubo
-		/*int32_t worldLocation = glGetUniformLocation(program, "u_WorldMatrix");
-		glUniformMatrix4fv(worldLocation, 1, false, glm::value_ptr(world));
-		int32_t viewLocation = glGetUniformLocation(program, "u_ViewMatrix");
-		glUniformMatrix4fv(viewLocation, 1, false, glm::value_ptr(view));
-		int32_t projectionLocation = glGetUniformLocation(program, "u_ProjectionMatrix");
-		glUniformMatrix4fv(projectionLocation, 1, false, glm::value_ptr(perspective));
-		*/
-
 		// position de la camera
 		int32_t camPosLocation = glGetUniformLocation(program, "u_CameraPosition");
 		glUniform3fv(camPosLocation, 1, &position.x);
@@ -244,10 +217,6 @@ struct Application
 		{
 			SubMesh& mesh = object->meshes[i];
 			Material& mat = mesh.materialId > -1 ? object->materials[mesh.materialId] : Material::defaultMaterial;
-			//glUniform3fv(ambientLocation, 1, &mat.ambientColor.x);
-			//glUniform3fv(diffuseLocation, 1, &mat.diffuseColor.x);
-			//glUniform3fv(specularLocation, 1, &mat.specularColor.x);
-			//glUniform1f(shininessLocation, mat.shininess);
 
 			//copier les materials dans l'ubo
 			glBindBuffer(GL_UNIFORM_BUFFER, materialUBO);
@@ -261,10 +230,12 @@ struct Application
 			//on n'a pas besoin de faire le samplerLocation parce que glActiveTexture le fait pour nous
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, mat.diffuseTexture);
-			//---------------------------------------------------------------------------------------------------------Texture normal
+			//Texture normal
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, mat.normalTexture);
-
+			//Texture spec
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, mat.specularTexture);
 			// bind implicitement les VBO et IBO rattaches, ainsi que les definitions d'attributs
 			glBindVertexArray(mesh.VAO);
 			// dessine les triangles

@@ -52,7 +52,6 @@ uint32_t Texture::LoadTexture(const char* filepath)
 	uint8_t* data = stbi_load(filepath, &width, &height, &c, STBI_rgb_alpha);
 	if (data == nullptr) {
 		std::cout << "l'image " << relativePath << " est introuvable." << std::endl;
-		// la premiere texture dans le texture manager est la texture par defaut blanche
 		return textures[0].id;
 	}
 
@@ -63,5 +62,4 @@ uint32_t Texture::LoadTexture(const char* filepath)
 	return textureID;
 }
 
-// version très basique d'un texture manager
 std::vector<Texture> Texture::textures;
