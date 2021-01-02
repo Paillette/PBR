@@ -62,4 +62,5 @@ uint32_t Texture::LoadTexture(const char* filepath)
 	return textureID;
 }
 
+
 std::vector<Texture> Texture::textures;

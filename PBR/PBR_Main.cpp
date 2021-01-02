@@ -181,6 +181,10 @@ struct Application
 		// ces matrices sont communes à tous les SubMesh
 		mat4 world(1.f), view, perspective;
 		
+		//world = glm::rotate(world, 180.f, vec3{ 0.f, 1.f, 0.f });
+		//vec3 position = { 0.f, 0.5f, -1.f };
+		//view = glm::lookAt(position, vec3{ 0.f, 0.2f, 0.f }, vec3{ 0.f, 1.f, 0.f });
+		//glados
 		world = glm::rotate(world, (float)glfwGetTime(), vec3{ 0.f, 1.f, 0.f });
 		vec3 position = {-4.f, 2.f, 1.f };
 		view = glm::lookAt(position, vec3{ 0.1f, 3.f, 0.1f }, vec3{ 0.f, 1.f, 0.f });
