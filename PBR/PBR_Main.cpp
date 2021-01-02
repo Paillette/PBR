@@ -56,8 +56,7 @@ struct Application
 		std::cout << "Vendor : " << glGetString(GL_VENDOR) << std::endl;
 		std::cout << "Renderer : " << glGetString(GL_RENDERER) << std::endl;
 
-		// on utilise un texture manager afin de ne pas recharger une texture deja en memoire
-		// de meme on va definir une ou plusieurs textures par defaut
+
 		Texture::SetupManager();
 
 		opaqueShader.LoadVertexShader("opaque.vs.glsl");
@@ -71,15 +70,9 @@ struct Application
 
 		Mesh::ParseFBX(object, "model/Glados.fbx");
 
-		//modifier createBufferObject() pour gerer les UBO
-		//1 -> creation de l'ubo
 		glGenBuffers(1, &matrixUBO);
-		//2 -> bind l'ubo pour l'utiliser
 		glBindBuffer(GL_UNIFORM_BUFFER, matrixUBO);
-		//3-> allocation mémoire de l'ubo
 		glBufferData(GL_UNIFORM_BUFFER, 3 * sizeof(mat4), nullptr, GL_STREAM_DRAW);
-		//4-> connexion UBO to shader (block)
-		//le deuxieme parametre indique le binding du block
 		glBindBufferBase(GL_UNIFORM_BUFFER, 0, matrixUBO);
 
 		//bind UBO material
@@ -90,8 +83,6 @@ struct Application
 
 		int32_t program = opaqueShader.GetProgram();
 		glUseProgram(program);
-		// on connait deja les attributs que l'on doit assigner dans le shader
-		//permet de déterminer la location de l'attribut et plus récupérer celle que donne openGl
 		int32_t positionLocation = 0; //  glGetAttribLocation(program, "a_Position");
 		int32_t normalLocation = 1; // glGetAttribLocation(program, "a_Normal");
 		int32_t texcoordsLocation = 2; // glGetAttribLocation(program, "a_TexCoords");
@@ -107,36 +98,27 @@ struct Application
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.IBO);
 
 			glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
-			// Specifie la structure des donnees envoyees au GPU
 			glVertexAttribPointer(positionLocation, 3, GL_FLOAT, false, sizeof(Vertex), 0);
 			glVertexAttribPointer(normalLocation, 3, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, normal));
 			glVertexAttribPointer(texcoordsLocation, 2, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, texcoords));
 			glVertexAttribPointer(tangentLocation, 4, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, tangent));
 
-			
-			// indique que les donnees sont sous forme de tableau
 			glEnableVertexAttribArray(positionLocation);
 			glEnableVertexAttribArray(normalLocation);
 			glEnableVertexAttribArray(texcoordsLocation);
 			glEnableVertexAttribArray(tangentLocation);
 
-			// ATTENTION, les instructions suivantes ne detruisent pas immediatement les VBO/IBO
-			// Ceci parcequ'ils sont référencés par le VAO. Ils ne seront détruit qu'au moment
-			// de la destruction du VAO
 			glBindVertexArray(0);
 			DeleteBufferObject(mesh.VBO);
 			DeleteBufferObject(mesh.IBO);
 		}
 
-
-		// force le framebuffer sRGB
 		glEnable(GL_FRAMEBUFFER_SRGB);
 
 		offscreenBuffer.CreateFramebuffer(width, height, true);
 		{
 			vec2 quad[] = { {-1.f, 1.f}, {-1.f, -1.f}, {1.f, 1.f}, {1.f, -1.f} };
 
-			// VAO du carré plein ecran pour le shader de copie
 			glGenVertexArrays(1, &quadVAO);
 			glBindVertexArray(quadVAO);
 			uint32_t vbo = CreateBufferObject(BufferType::VBO, sizeof(quad), quad);
@@ -156,41 +138,35 @@ struct Application
 		glUseProgram(0);
 	}
 
-	// la scene est rendue hors ecran
 	void RenderOffscreen()
 	{
 		//offscreenBuffer.EnableRender();
 		glBindFramebuffer(GL_FRAMEBUFFER, offscreenBuffer.FBO);
 		glViewport(0, 0, offscreenBuffer.width, offscreenBuffer.height);
 
-		glClearColor(0.973f, 0.514f, 0.475f, 1.f);
+		glClearColor(0.02f, 0.02f, 0.02f, 1.f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		// Defini le viewport en pleine fenetre
 		glViewport(0, 0, width, height);
 
-		// En 3D il est usuel d'activer le depth test pour trier les faces, et cacher les faces arrières
-		// Par défaut OpenGL considère que les faces anti-horaires sont visibles (Counter Clockwise, CCW)
 		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_CULL_FACE);
 
 		uint32_t program = opaqueShader.GetProgram();
 		glUseProgram(program);
 
-		// calcul des matrices model (une simple rotation), view (une translation inverse) et projection
-		// ces matrices sont communes à tous les SubMesh
 		mat4 world(1.f), view, perspective;
 		
-		//world = glm::rotate(world, 180.f, vec3{ 0.f, 1.f, 0.f });
+		world = glm::rotate(world, -0.3f, vec3{ 0.f, 1.f, 0.f });
 		//vec3 position = { 0.f, 0.5f, -1.f };
 		//view = glm::lookAt(position, vec3{ 0.f, 0.2f, 0.f }, vec3{ 0.f, 1.f, 0.f });
 		//glados
-		world = glm::rotate(world, (float)glfwGetTime(), vec3{ 0.f, 1.f, 0.f });
+		//world = glm::rotate(world, (float)glfwGetTime(), vec3{ 0.f, 1.f, 0.f });
 		vec3 position = {-4.f, 2.f, 1.f };
 		view = glm::lookAt(position, vec3{ 0.1f, 3.f, 0.1f }, vec3{ 0.f, 1.f, 0.f });
 		perspective = glm::perspectiveFov(45.f, (float)width, (float)height, 0.1f, 1000.f);
 		
-		//copier les matrices dans l'ubo
+		//copy matrix in ubo
 		glBindBuffer(GL_UNIFORM_BUFFER, matrixUBO);
 		//memory mapping
 		mat4* matricesMat = (mat4*)glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
@@ -199,30 +175,21 @@ struct Application
 		matricesMat[2] = perspective;
 		glUnmapBuffer(GL_UNIFORM_BUFFER);
 
-		// position de la camera
+		// camera position
 		int32_t camPosLocation = glGetUniformLocation(program, "u_CameraPosition");
 		glUniform3fv(camPosLocation, 1, &position.x);
 
-		// On va maintenant affecter les valeurs du matériau à chaque SubMesh
-		// On peut éventuellement optimiser cette boucle en triant les SubMesh par materialID
-		// On ne devra modifier les uniformes que lorsque le materialID change
 		int32_t ambientLocation = glGetUniformLocation(program, "u_Material.AmbientColor");
 		int32_t diffuseLocation = glGetUniformLocation(program, "u_Material.DiffuseColor");
 		int32_t specularLocation = glGetUniformLocation(program, "u_Material.SpecularColor");
 		int32_t shininessLocation = glGetUniformLocation(program, "u_Material.Shininess");
-
-
-		// on indique au shader que l'on va bind la texture diffuse sur le sampler 0 (TEXTURE0)
-		//on récupère dans le shader la location avec "binding"
-		//int32_t samplerLocation = glGetUniformLocation(program, "u_DiffuseTexture");
-		//glUniform1i(samplerLocation, 0);
 
 		for (uint32_t i = 0; i < object->meshCount; i++)
 		{
 			SubMesh& mesh = object->meshes[i];
 			Material& mat = mesh.materialId > -1 ? object->materials[mesh.materialId] : Material::defaultMaterial;
 
-			//copier les materials dans l'ubo
+			//copy in UBO
 			glBindBuffer(GL_UNIFORM_BUFFER, materialUBO);
 			vec4* materialMat = (vec4*)glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
 			materialMat[0] = vec4(mat.ambientColor, 0.f);
@@ -230,8 +197,6 @@ struct Application
 			materialMat[2] = vec4(mat.specularColor, mat.shininess);
 			glUnmapBuffer(GL_UNIFORM_BUFFER);
 
-			// glActiveTexture() n'est pas strictement requis ici car nous n'avons qu'une seule texture pour le moment
-			//on n'a pas besoin de faire le samplerLocation parce que glActiveTexture le fait pour nous
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, mat.diffuseTexture);
 			//Texture normal
@@ -240,38 +205,29 @@ struct Application
 			//Texture spec
 			glActiveTexture(GL_TEXTURE2);
 			glBindTexture(GL_TEXTURE_2D, mat.specularTexture);
-			// bind implicitement les VBO et IBO rattaches, ainsi que les definitions d'attributs
 			glBindVertexArray(mesh.VAO);
-			// dessine les triangles
 			glDrawElements(GL_TRIANGLES, object->meshes[i].indicesCount, GL_UNSIGNED_INT, 0);
 		}
 	}
 
 	void Render()
 	{
-		// Rendu 3D hors ecran ---
-
-		glEnable(GL_DEPTH_TEST);	// Active le test de profondeur (3D)
-		
+		glEnable(GL_DEPTH_TEST);
 		RenderOffscreen();
 
-		// Rendu 2D vers le backbuffer (copie) ---
-
-		glDisable(GL_DEPTH_TEST);	// desactive le test de profondeur (2D)
-		
-		// on va maintenant dessiner un quadrilatere plein ecran
-		// pour copier (sampler et inscrire dans le back-buffer) le color buffer du FBO
-		//Framebuffer::RenderToBackBuffer(width, height);
+		glDisable(GL_DEPTH_TEST);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, width, height);
 
 		uint32_t program = copyShader.GetProgram();
 		glUseProgram(program);
-		
-		// on indique au shader que l'on va bind la texture sur le sampler 0 (TEXTURE0)
-		// pas necessaire techniquement car c'est le sampler par defaut
+
 		int32_t samplerLocation = glGetUniformLocation(program, "u_Texture");
 		glUniform1i(samplerLocation, 0);
+
+		float time = (float)glfwGetTime();
+		GLint locTime = glGetUniformLocation(program, "u_Time");
+		glUniform1f(locTime, time);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, offscreenBuffer.colorBuffer);
@@ -286,7 +242,6 @@ struct Application
 		{
 			width = w;
 			height = h;
-			// le plus simple est de detruire et recreer tout
 			offscreenBuffer.DestroyFramebuffer();
 			offscreenBuffer.CreateFramebuffer(width, height, true);
 		}
@@ -301,8 +256,6 @@ struct Application
 		
 		object->Destroy();
 		delete object;
-
-		// On n'oublie pas de détruire les objets OpenGL
 
 		Texture::PurgeTextures();
 		

@@ -20,29 +20,13 @@ layout(binding = 1) uniform Materials
 };
 
 uniform vec3 u_CameraPosition;
+uniform float u_Time;
 
 layout(binding = 0) uniform sampler2D u_DiffuseTexture;
 layout(binding = 1) uniform sampler2D u_NormalTexture;
 layout(binding = 2) uniform sampler2D u_ORMTexture;
 
 float PI = 3.1416;
-
-float Lambert(vec3 N, vec3 L)
-{
-	return max(0.0, dot(N, L));
-}
-
-float Phong(vec3 N, vec3 L, vec3 V, float shininess)
-{
-	vec3 R = reflect(-L, N);
-	return pow(max(0.0, dot(R, V)), shininess);
-}
-
-float BlinnPhong(vec3 N, vec3 L, vec3 V, float shininess)
-{
-	vec3 H = normalize(L + V);
-	return pow(max(0.0, dot(N, H)), shininess);
-}
 
 //PBR
 //NDF
@@ -108,7 +92,7 @@ void main(void)
 	//const vec3 lightColor[2] = vec3[2](vec3(1.0, 1.0, 1.0), vec3(0.5, 0.5, 0.5));
 	
 	vec3 lightDir = normalize(vec3(.3, .0, .8));
-	vec3 lightColor = vec3(2.);
+	vec3 lightColor = vec3(1.);
 	const float attenuation = 1.0;
 
 	vec3 N = normalize(v_Normal);
@@ -142,18 +126,19 @@ void main(void)
 	N = texture(u_NormalTexture, v_TexCoords).rgb * 2.0 - 1.0;
 	N = normalize(TBN * N);
 
-	vec3 ambientColor = baseColor * u_Material.AmbientColor;
+	vec3 ambientColor = baseColor * vec3(.01); //u_Material.AmbientColor;
 	vec3 indirectColor = ambientColor;
 
 
 	//---------------------------------------------------Diffuse Color
 	 //if metallic == 1 : baseColor = 0.
      vec3 diffuseColor = baseColor * (1.0 - metallic);
-	 vec3 diffuse = vec3(0);
+	 vec3 diffuse = vec3(0.);
 	 diffuse += diffuseColor * lightColor * NdotL;
 	 diffuse *= AO;
 
 	 diffuse *= f0;
+	 diffuse += indirectColor;
 
 	 //------------------------------------------------Specular
 	 vec3 specular = vec3(0.0);
@@ -175,5 +160,5 @@ void main(void)
 	 //Light ending
 	 vec3 lightingModel = (diffuse + specularity);
 	 
-	 o_FragColor = vec4(lightingModel , 1.0);
+	 o_FragColor = vec4(lightingModel, 1.0);
 }
