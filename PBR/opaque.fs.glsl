@@ -83,9 +83,12 @@ float SchlickIORFresnelFunction(float ior ,float LdotH)
 void main(void)
 {
 	float ior = 1.3;
-	float AO = texture(u_ORMTexture, v_TexCoords).r;
-	float roughness = texture(u_ORMTexture, v_TexCoords).g;
-	float metallic = texture(u_ORMTexture, v_TexCoords).b;
+
+	vec3 ORMLinear = pow(texture(u_ORMTexture, v_TexCoords).rgb, vec3(2.2));
+	//vec3 ORMLinear = texture(u_ORMTexture, v_TexCoords).rgb;
+	float AO = ORMLinear.r;
+	float roughness = ORMLinear.g;
+	float metallic = ORMLinear.b;
 
 	//lights
 	//const vec3 L[2] = vec3[2](normalize(vec3(0.3, 0., 0.8)), normalize(vec3(0.0, 0.0, -1.0)));
@@ -98,11 +101,18 @@ void main(void)
 	vec3 N = normalize(v_Normal);
 	vec3 viewDir = normalize(u_CameraPosition - v_Position);
 
+	//NORMALE
+	vec3 T = normalize(v_Tangent.xyz);
+	vec3 B = normalize(cross(N, T) * v_Tangent.w);
+	// TBN
+	mat3 TBN = mat3(T, B, N);
+	// N
+    N = texture(u_NormalTexture, v_TexCoords).rgb * 2.0 - 1.0;
+	N = normalize(TBN * N);
+
 	//---------------------------------->BASE COLOR
-	vec4 baseTexel = texture2D(u_DiffuseTexture, v_TexCoords);
-	//Gamma
-	baseTexel.rgb = pow(baseTexel.rgb, vec3(2.2));
-	vec3 baseColor = baseTexel.rgb;
+	vec3 baseColor = texture2D(u_DiffuseTexture, v_TexCoords).rgb;
+
 	//whitout texture
 	//vec3 baseColor = pow(vec3(0.6, 0.6, 0.6), vec3(2.2));
 
@@ -113,37 +123,28 @@ void main(void)
 	float VdotH = clamp(dot(viewDir, halfVec), 0., 1.);
 	float LdotH = clamp(dot(lightDir, halfVec), 0., 1.0);
 
-	 float R = roughness * roughness;
-	 R = max(.01, R);
- 	 float f0 = calculateF0(NdotL, NdotV, LdotH, R);
-
-	//NORMALE
-	vec3 T = normalize(v_Tangent.xyz);
-	vec3 B = normalize(cross(N, T) * v_Tangent.w);
-	// TBN
-	mat3 TBN = mat3(T, B, N);
-	// N
-	N = texture(u_NormalTexture, v_TexCoords).rgb * 2.0 - 1.0;
-	N = normalize(TBN * N);
+	//float R = pow(roughness, 2.0);
+	//R = max(.01, R);
+	float R = clamp(roughness - 0.000001, 0., 1.) + 0.000001;
+ 	float f0 = calculateF0(NdotL, NdotV, LdotH, R);
 
 	vec3 ambientColor = baseColor * vec3(.01); //u_Material.AmbientColor;
 	vec3 indirectColor = ambientColor;
-
 
 	//---------------------------------------------------Diffuse Color
 	 //if metallic == 1 : baseColor = 0.
      vec3 diffuseColor = baseColor * (1.0 - metallic);
 	 vec3 diffuse = vec3(0.);
-	 diffuse += diffuseColor * lightColor * NdotL;
+	 diffuse += diffuseColor * lightColor;
 	 diffuse *= AO;
 
 	 diffuse *= f0;
 	 diffuse += indirectColor;
 
 	 //------------------------------------------------Specular
-	 vec3 specular = vec3(0.0);
+	 vec3 specular = mix(u_Material.SpecularColor, baseColor, metallic * 0.5);
 	 //GGX NDF
-	 vec3 SpecularDistribution = vec3(1.0); //u_Material.SpecularColor;
+	 vec3 SpecularDistribution = specular;
 	 SpecularDistribution *= DistributionGGX(R, NdotH);
 	 
 	 //Geometric Shadow
@@ -151,11 +152,11 @@ void main(void)
 	 GeometricShadow *= CookTorrenceGeometricShadowingFunction(NdotL, NdotV, VdotH, NdotH);
 	 
 	 //Schlick Fresnel
-	 vec3 FresnelFunction = vec3(1.0);//u_Material.SpecularColor;
+	 vec3 FresnelFunction = specular;
 	 FresnelFunction *=  SchlickIORFresnelFunction(ior, LdotH);
 
 	 vec3 specularity = lightColor * FresnelFunction * (SpecularDistribution * GeometricShadow * PI * NdotL);
-	 specularity *= clamp(pow(NdotV + AO, roughness * roughness) - 1. + AO, 0., 1.);
+	 specularity *= clamp(pow(NdotV + AO, R * R) - 1. + AO, 0., 1.);
 
 	 //Light ending
 	 vec3 lightingModel = (diffuse + specularity);

@@ -11,6 +11,7 @@ struct Material
 	uint32_t ambientTexture;
 	uint32_t diffuseTexture;
 	uint32_t specularTexture;
+	uint32_t metallicTexture;
 	uint32_t normalTexture;
 
 	static Material defaultMaterial;

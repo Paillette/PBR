@@ -105,6 +105,7 @@ void ParseMaterial(Material& mat, FbxNode* node)
 			}
 		}
 
+
 		//Normal Map
 		const FbxProperty property_diff_normal = fbx_material->FindProperty(FbxSurfaceMaterial::sBump);
 		const FbxProperty factor_diff_normal = fbx_material->FindProperty(FbxSurfaceMaterial::sBumpFactor);
