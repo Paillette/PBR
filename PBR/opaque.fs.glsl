@@ -89,7 +89,7 @@ void main(void)
 	//vec3 ORMLinear = texture(u_ORMTexture, v_TexCoords).rgb;
 	float AO = ORMLinear.r;
 	float roughness = ORMLinear.g;
-	float metallic = ORMLinear.b * 10.;
+	float metallic = ORMLinear.b * 10;
 
 	//lights
 	//const vec3 L[2] = vec3[2](normalize(vec3(0.3, 0., 0.8)), normalize(vec3(0.0, 0.0, -1.0)));
