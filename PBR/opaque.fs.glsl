@@ -73,10 +73,6 @@ void main(void)
 	float roughness = ORMLinear.g;
 	float metallic = ORMLinear.b * 10;
 
-	//lights
-	//const vec3 L[2] = vec3[2](normalize(vec3(0.3, 0., 0.8)), normalize(vec3(0.0, 0.0, -1.0)));
-	//const vec3 lightColor[2] = vec3[2](vec3(1.0, 1.0, 1.0), vec3(0.5, 0.5, 0.5));
-	
 	vec3 lightDir = normalize(vec3(.3, .0, .8));
 	vec3 lightColor = vec3(1.);
 	const float attenuation = 1.0;
@@ -109,51 +105,35 @@ void main(void)
 	float LdotN = clamp(dot(lightDir, N), 0., 1.0);
 
 	//Diffuse
-	const float dielectricSpecular = 0.04
+	const vec3 dielectricSpecular = vec3(0.04);
 	//if metallic == 1 : baseColor = 0.
-    vec3 diffuseColor = mix(baseColor * (1.0 - dielectricSpecular), 0.0, metallic);
+    vec3 cDiff = mix(baseColor * (1.0 - dielectricSpecular), vec3(0.0), metallic);
 	//F0
-	vec3 f0 = vec3(0.04);
-	f0 = mix(f0, baseColor, metallic);
+	vec3 f0 = mix(dielectricSpecular, baseColor, metallic);
 	//Roughness
-	float R = pow(roughness, 2.0);
+	float alpha = pow(roughness, 2.0);
+	float alphaSq = pow(alpha, 20.);
 
-	float F = f0 + (1 - f0) * pow((1 - abs(VdotH)), 5.0);
+	vec3 F = f0 + (vec3(1.0) - f0) * pow((1.0 - abs(VdotH)), 5.0);
 
 	vec3 ambientColor = baseColor * vec3(.01);
 	vec3 indirectColor = ambientColor;
 
 	//---------------------------------------------------Diffuse Color
-	 vec3 diffuse = ( 1 - F ) * ( 1 / PI ) * diffuseColor;
+	 vec3 diffuse = ( vec3(1.) - F ) * ( 1 / PI ) * cDiff;
 	 //diffuse += diffuseColor * lightColor;
 	 //diffuse *= AO;
 
 	 //diffuse += indirectColor;
 
 	 //------------------------------------------------Specular
-	 vec3 specular = mix(u_Material.SpecularColor, baseColor, metallic * 0.5);
-	 //GGX NDF
-	 vec3 SpecularDistribution = specular;
-	 //SpecularDistribution *= DistributionGGX(R, NdotH);
-	 
-	 //Geometric Shadow
-	 vec3 GeometricShadow = vec3(1.0);
-	// GeometricShadow *= CookTorrenceGeometricShadowingFunction(NdotL, NdotV, VdotH, NdotH);
-	 
-	 //Schlick Fresnel
-	 vec3 FresnelFunction = specular;
-	 //FresnelFunction *=  SchlickIORFresnelFunction(ior, LdotH);
-	 //FresnelFunction = fresnelSchlick(NdotH, f0);
+	 float G = V_GGX(NdotL, NdotV, alphaSq);
+	 float D = DistributionGGX(roughness, NdotH);
 
-	 //vec3 specularity = lightColor * FresnelFunction * (SpecularDistribution * GeometricShadow * PI * NdotL);
-	 //specularity *= clamp(pow(NdotV + AO, R * R) - 1. + AO, 0., 1.);
-
-	 vec3 specularity = F * DistributionGGX(roughness, NdotH) 
-	                    * V_GGX(NdotL, NdotV, roughness) / 
-						( 4 * abs(VdotN) * abs(LdotN));
+	 vec3 specular = ( F * G * D ) / ( 4.0 * NdotL * NdotV );
 
 	 //Light ending
-	 vec3 lightingModel = (diffuse + specularity);
+	 vec3 lightingModel = diffuse;// + specular;
 	 
 	 o_FragColor = vec4(lightingModel, 1.0);
 }
