@@ -28,57 +28,39 @@ layout(binding = 2) uniform sampler2D u_ORMTexture;
 
 float PI = 3.1416;
 
-//PBR
-//NDF
+//PBR implementation gltf
+//https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#complete-model
+
+//Specular NDF : GGX microfacet distribution 
+//TrowbridgeReitzDistribution
 float DistributionGGX(float roughness, float NdotH)
 {
     float roughnessSqr = roughness * roughness;
-    float NdotHSqr = (NdotH * roughnessSqr - NdotH) * NdotH + 1.0;
+    float NdotHSqr = (NdotH * NdotH) * (roughnessSqr - 1.0) + 1.0;
     return roughnessSqr / (NdotHSqr * NdotHSqr * PI);
-
 }
 
-//GSF
-float CookTorrenceGeometricShadowingFunction (float NdotL, float NdotV, float VdotH, float NdotH)
+//Geometric shadow
+//Smith joint 
+float V_GGX(float NdotL, float NdotV, float alphaRoughness)
 {
-	float Gs = min(1.0, min(2*NdotH*NdotV / VdotH, 2*NdotH*NdotL / VdotH));
-	return Gs;
+    float alphaRoughnessSq = alphaRoughness * alphaRoughness;
+
+    float GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
+    float GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
+
+    float GGX = GGXV + GGXL;
+    if (GGX > 0.0)
+    {
+        return 0.5 / GGX;
+    }
+    return 0.0;
 }
 
-// Fresnel
-vec3 FresnelTerm(vec3 specularColor, float vdoth)
+// Fresnel Schlick
+vec3 fresnel(vec3 f0, vec3 f90, float VdotH)
 {
-	vec3 fresnel = specularColor + (1. - specularColor) * pow((1. - vdoth), 5.);
-	return fresnel;
-}
-
-float MixFunction(float i, float j, float x) {
-	 return  j * x + i * (1.0 - x);
-}
-
-float SchlickFresnel(float i){
-    float x = clamp(1.0-i, 0.0, 1.0);
-    float x2 = x*x;
-    return x2*x2*x;
-}
-
-float calculateF0 (float NdotL, float NdotV, float LdotH, float roughness)
-{
-    float FresnelLight = SchlickFresnel(NdotL); 
-    float FresnelView = SchlickFresnel(NdotV);
-    float FresnelDiffuse90 = 0.5 + 2.0 * LdotH*LdotH * roughness;
-    return  MixFunction(1, FresnelDiffuse90, FresnelLight) * MixFunction(1, FresnelDiffuse90, FresnelView);
-}
-
-float SchlickIORFresnelFunction(float ior ,float LdotH)
-{
-    float f0 = pow(ior-1,2)/pow(ior+1, 2);
-    return f0 + (1-f0) * SchlickFresnel(LdotH);
-}
-
-vec3 fresnelSchlick(float cosTheta, vec3 F0)
-{
-    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+    return f0 + (f90 - f0) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0);
 }
 
 void main(void)
@@ -102,7 +84,7 @@ void main(void)
 	vec3 N = normalize(v_Normal);
 	vec3 viewDir = normalize(u_CameraPosition - v_Position);
 
-	//NORMALE
+	//---------------------------------->NORMALE
 	vec3 T = normalize(v_Tangent.xyz);
 	vec3 B = normalize(cross(N, T) * v_Tangent.w);
 	// TBN
@@ -123,43 +105,52 @@ void main(void)
 	float NdotV = clamp(dot(N, viewDir), 0., 1.);
 	float VdotH = clamp(dot(viewDir, halfVec), 0., 1.);
 	float LdotH = clamp(dot(lightDir, halfVec), 0., 1.0);
+	float VdotN = clamp(dot(viewDir, N), 0., 1.);
+	float LdotN = clamp(dot(lightDir, N), 0., 1.0);
 
-	float R = pow(roughness, 2.0);
-	R = max(.01, R);
-	//float R = clamp(roughness - 0.000001, 0., 1.) + 0.000001;
- 	//float f0 = calculateF0(NdotL, NdotV, LdotH, R);
+	//Diffuse
+	const float dielectricSpecular = 0.04
+	//if metallic == 1 : baseColor = 0.
+    vec3 diffuseColor = mix(baseColor * (1.0 - dielectricSpecular), 0.0, metallic);
+	//F0
 	vec3 f0 = vec3(0.04);
 	f0 = mix(f0, baseColor, metallic);
+	//Roughness
+	float R = pow(roughness, 2.0);
+
+	float F = f0 + (1 - f0) * pow((1 - abs(VdotH)), 5.0);
 
 	vec3 ambientColor = baseColor * vec3(.01);
 	vec3 indirectColor = ambientColor;
 
 	//---------------------------------------------------Diffuse Color
-	 //if metallic == 1 : baseColor = 0.
-     vec3 diffuseColor = baseColor * (1.0 - metallic);
-	 vec3 diffuse = vec3(0.);
-	 diffuse += diffuseColor * lightColor;
-	 diffuse *= AO;
+	 vec3 diffuse = ( 1 - F ) * ( 1 / PI ) * diffuseColor;
+	 //diffuse += diffuseColor * lightColor;
+	 //diffuse *= AO;
 
-	 diffuse += indirectColor;
+	 //diffuse += indirectColor;
 
 	 //------------------------------------------------Specular
 	 vec3 specular = mix(u_Material.SpecularColor, baseColor, metallic * 0.5);
 	 //GGX NDF
 	 vec3 SpecularDistribution = specular;
-	 SpecularDistribution *= DistributionGGX(R, NdotH);
+	 //SpecularDistribution *= DistributionGGX(R, NdotH);
 	 
 	 //Geometric Shadow
 	 vec3 GeometricShadow = vec3(1.0);
-	 GeometricShadow *= CookTorrenceGeometricShadowingFunction(NdotL, NdotV, VdotH, NdotH);
+	// GeometricShadow *= CookTorrenceGeometricShadowingFunction(NdotL, NdotV, VdotH, NdotH);
 	 
 	 //Schlick Fresnel
 	 vec3 FresnelFunction = specular;
 	 //FresnelFunction *=  SchlickIORFresnelFunction(ior, LdotH);
-	 FresnelFunction = fresnelSchlick(NdotH, f0);
+	 //FresnelFunction = fresnelSchlick(NdotH, f0);
 
-	 vec3 specularity = lightColor * FresnelFunction * (SpecularDistribution * GeometricShadow * PI * NdotL);
-	 specularity *= clamp(pow(NdotV + AO, R * R) - 1. + AO, 0., 1.);
+	 //vec3 specularity = lightColor * FresnelFunction * (SpecularDistribution * GeometricShadow * PI * NdotL);
+	 //specularity *= clamp(pow(NdotV + AO, R * R) - 1. + AO, 0., 1.);
+
+	 vec3 specularity = F * DistributionGGX(roughness, NdotH) 
+	                    * V_GGX(NdotL, NdotV, roughness) / 
+						( 4 * abs(VdotN) * abs(LdotN));
 
 	 //Light ending
 	 vec3 lightingModel = (diffuse + specularity);
