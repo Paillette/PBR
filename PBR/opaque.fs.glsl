@@ -85,11 +85,11 @@ void main(void)
 {
 	float ior = 1.3;
 
-	vec3 ORMLinear = pow(texture(u_ORMTexture, v_TexCoords).rgb, vec3(2.2));
-	//vec3 ORMLinear = texture(u_ORMTexture, v_TexCoords).rgb;
+	//vec3 ORMLinear = pow(texture(u_ORMTexture, v_TexCoords).rgb, vec3(2.2));
+	vec3 ORMLinear = texture(u_ORMTexture, v_TexCoords).rgb;
 	float AO = ORMLinear.r;
 	float roughness = ORMLinear.g;
-	float metallic = ORMLinear.b * 10;
+	float metallic = ORMLinear.b;
 
 	//lights
 	//const vec3 L[2] = vec3[2](normalize(vec3(0.3, 0., 0.8)), normalize(vec3(0.0, 0.0, -1.0)));
@@ -125,9 +125,7 @@ void main(void)
 	float LdotH = clamp(dot(lightDir, halfVec), 0., 1.0);
 
 	float R = pow(roughness, 2.0);
-	R = max(.01, R);
-	//float R = clamp(roughness - 0.000001, 0., 1.) + 0.000001;
- 	//float f0 = calculateF0(NdotL, NdotV, LdotH, R);
+
 	vec3 f0 = vec3(0.04);
 	f0 = mix(f0, baseColor, metallic);
 
