@@ -20,6 +20,8 @@
 #define FBXSDK_SHARED 1
 #include "fbxsdk.h"
 
+#include "stb_image.h"
+
 #include "../common/GLShader.h"
 #include "mat4.h"
 #include "Texture.h"
@@ -32,9 +34,8 @@ struct Application
 	uint32_t quadVAO;
 
 	GLShader opaqueShader;
-	GLShader copyShader;			// remplace glBlitFrameBuffer
+	GLShader copyShader;	
 
-	// dimensions du back buffer / Fenetre
 	int32_t width;
 	int32_t height;
 
@@ -42,7 +43,56 @@ struct Application
 
 	uint32_t materialUBO;
 
-	Framebuffer offscreenBuffer;	// rendu hors ecran
+	Framebuffer offscreenBuffer;
+
+	//cubemap 
+	uint32_t cubeMapID;
+	GLShader g_skyboxShader;
+	GLuint skyboxVAO, skyboxVBO;
+
+	uint32_t LoadCubemap(const char* pathes[6])
+	{
+		unsigned int cubemapTexture;
+		glGenTextures(1, &cubemapTexture);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+
+		int width, height, c;
+		for (int i = 0; i < 6; i++)
+		{
+			uint8_t* data = stbi_load(pathes[i], &width, &height, &c, STBI_rgb_alpha);
+			if (data)
+			{
+				std::cout << "Cubemap texture load at path: " << pathes[i] << std::endl;
+				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			}
+			else
+			{
+				std::cout << "Cubemap texture failed to load at path: " << GL_TEXTURE_CUBE_MAP_POSITIVE_X + i << std::endl;
+			}
+			stbi_image_free(data);
+		}
+
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+		return cubemapTexture;
+	}
+
+	void InitCubeMap()
+	{
+		const char* pathes[6] = {
+			"../data/envmaps/pisa_posx.jpg",
+			"../data/envmaps/pisa_negx.jpg",
+			"../data/envmaps/pisa_posy.jpg",
+			"../data/envmaps/pisa_negy.jpg",
+			"../data/envmaps/pisa_posz.jpg",
+			"../data/envmaps/pisa_negz.jpg"
+		};
+
+		cubeMapID = LoadCubemap(pathes);
+	}
 
 	void Initialize()
 	{
@@ -66,9 +116,11 @@ struct Application
 		copyShader.LoadFragmentShader("copy.fs.glsl");
 		copyShader.Create();
 
+		InitCubeMap();
+
 		object = new Mesh();
 
-		Mesh::ParseFBX(object, "model/PetitRobot.fbx");
+		Mesh::ParseFBX(object, "model/TestSphere.fbx");
 
 		glGenBuffers(1, &matrixUBO);
 		glBindBuffer(GL_UNIFORM_BUFFER, matrixUBO);
@@ -133,6 +185,10 @@ struct Application
 			DeleteBufferObject(vbo);
 		}
 
+		//Cubemap
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapID);
+
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glUseProgram(0);
@@ -158,12 +214,9 @@ struct Application
 		mat4 world(1.f), view, perspective;
 		
 		world = glm::rotate(world, (float)glfwGetTime(), vec3{ 0.f, 1.f, 0.f });
-		//vec3 position = { 0.f, 0.5f, -1.f };
-		//view = glm::lookAt(position, vec3{ 0.f, 0.2f, 0.f }, vec3{ 0.f, 1.f, 0.f });
-		//glados
-		//world = glm::rotate(world, (float)glfwGetTime(), vec3{ 0.f, 1.f, 0.f });
-		vec3 position = {0.f, 20.f, 35.f };
-		view = glm::lookAt(position, vec3{ 0.1f, 10.f, 0.1f }, vec3{ 0.f, 1.f, 0.f });
+		vec3 position = {0.f, 0.5f, 1.f };
+		//vec3 position = {0.f, 20.f, 35.f };
+		view = glm::lookAt(position, vec3{ 0.1f, 0.3f, 0.1f }, vec3{ 0.f, 1.f, 0.f });
 		perspective = glm::perspectiveFov(45.f, (float)width, (float)height, 0.1f, 1000.f);
 		
 		//copy matrix in ubo
@@ -258,7 +311,8 @@ struct Application
 		delete object;
 
 		Texture::PurgeTextures();
-		
+		glDeleteTextures(1, &cubeMapID);
+
 		copyShader.Destroy();
 		opaqueShader.Destroy();
 	}
