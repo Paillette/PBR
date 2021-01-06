@@ -87,11 +87,12 @@ void ParseMaterial(Material& mat, FbxNode* node)
 			}
 		}
 
-		const FbxProperty property_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sSpecular);
-		const FbxProperty factor_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sSpecularFactor);
+		const FbxProperty property_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sEmissive);
+		const FbxProperty factor_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sEmissiveFactor);
 		const FbxProperty property_shiny = fbx_material->FindProperty(FbxSurfaceMaterial::sShininess);
 		if (property_spec.IsValid())
 		{
+
 			mat.specularColor = GetProperty3(property_spec, factor_spec);
 			mat.shininess = GetProperty(property_shiny) * 1024.f;
 
@@ -107,7 +108,7 @@ void ParseMaterial(Material& mat, FbxNode* node)
 
 
 		//Normal Map
-		const FbxProperty property_diff_normal = fbx_material->FindProperty(FbxSurfaceMaterial::sBump);
+		const FbxProperty property_diff_normal = fbx_material->FindProperty(FbxSurfaceMaterial::sNormalMap);
 		const FbxProperty factor_diff_normal = fbx_material->FindProperty(FbxSurfaceMaterial::sBumpFactor);
 		
 		if (property_diff_normal.IsValid())

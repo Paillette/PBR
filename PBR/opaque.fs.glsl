@@ -162,5 +162,5 @@ void main(void)
 	 //Light ending
 	 vec3 lightingModel = (diffuse + specularity);
 	 
-	 o_FragColor = vec4(lightingModel, 1.0);
+	 o_FragColor = vec4(vec3(AO), 1.0);
 }

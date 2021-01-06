@@ -68,7 +68,7 @@ struct Application
 
 		object = new Mesh();
 
-		Mesh::ParseFBX(object, "model/Glados.fbx");
+		Mesh::ParseFBX(object, "model/PetitRobot.fbx");
 
 		glGenBuffers(1, &matrixUBO);
 		glBindBuffer(GL_UNIFORM_BUFFER, matrixUBO);
@@ -162,8 +162,8 @@ struct Application
 		//view = glm::lookAt(position, vec3{ 0.f, 0.2f, 0.f }, vec3{ 0.f, 1.f, 0.f });
 		//glados
 		//world = glm::rotate(world, (float)glfwGetTime(), vec3{ 0.f, 1.f, 0.f });
-		vec3 position = {-4.f, 2.f, 1.f };
-		view = glm::lookAt(position, vec3{ 0.1f, 3.f, 0.1f }, vec3{ 0.f, 1.f, 0.f });
+		vec3 position = {0.f, 20.f, 35.f };
+		view = glm::lookAt(position, vec3{ 0.1f, 10.f, 0.1f }, vec3{ 0.f, 1.f, 0.f });
 		perspective = glm::perspectiveFov(45.f, (float)width, (float)height, 0.1f, 1000.f);
 		
 		//copy matrix in ubo
