@@ -185,6 +185,8 @@ struct Application
 			DeleteBufferObject(vbo);
 		}
 
+		glDisable(GL_FRAMEBUFFER_SRGB);
+
 		//Cubemap
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapID);

@@ -44,7 +44,7 @@ float DistributionGGX(vec3 N, vec3 H, float roughness)
     float denom = (NdotH2 * (a2 - 1.0) + 1.0);
     denom = PI * denom * denom;
 
-    return nom / max( denom, 0.00001f );
+    return nom / max( denom, 0.000001f );
 }
 
 //Geometric Function
@@ -89,7 +89,7 @@ void main(void)
 
 	//without texture
 	AO = 1.0f;
-	roughness = 1.0f;
+	roughness = 0.20f;
 	metallic = 0.0f;
 //---------------------------------------> View direction (V)
 	vec3 viewDir = normalize(u_CameraPosition - v_Position);
@@ -150,8 +150,7 @@ void main(void)
 		vec3 kD = vec3(1.0) - ks;
 		kD *= 1.0 - metallic;
 
-		//reflectance += ( kD * baseColor / PI + specularity) * radiance * NdotL;
-		reflectance = vec3(SpecularDistribution);
+		reflectance += ( kD * baseColor / PI + specularity) * radiance * NdotL;
 	}
 
 //---------------------------------------> Cubemap
@@ -165,5 +164,5 @@ void main(void)
 	//gamma correction 
 	color = pow(color, vec3(1.0 / 2.2));
 
-	o_FragColor = vec4(reflectance, 1.0);
+	o_FragColor = vec4(color, 1.0);
 }
