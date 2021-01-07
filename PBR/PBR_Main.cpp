@@ -120,7 +120,7 @@ struct Application
 
 		object = new Mesh();
 
-		Mesh::ParseFBX(object, "model/TestSphere.fbx");
+		Mesh::ParseFBX(object, "model/PetitRobot.fbx");
 
 		glGenBuffers(1, &matrixUBO);
 		glBindBuffer(GL_UNIFORM_BUFFER, matrixUBO);
@@ -202,7 +202,7 @@ struct Application
 		glBindFramebuffer(GL_FRAMEBUFFER, offscreenBuffer.FBO);
 		glViewport(0, 0, offscreenBuffer.width, offscreenBuffer.height);
 
-		glClearColor(0.02f, 0.02f, 0.02f, 1.f);
+		glClearColor(0.1f, 0.1f, 0.1f, 1.f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glViewport(0, 0, width, height);
@@ -216,9 +216,10 @@ struct Application
 		mat4 world(1.f), view, perspective;
 		
 		world = glm::rotate(world, (float)glfwGetTime(), vec3{ 0.f, 1.f, 0.f });
-		vec3 position = {0.f, 0.2f, 1.f };
+		vec3 position = {0.f, 0.4f, 1.2f };
+		world = glm::scale(world, vec3(0.03));
 		//vec3 position = {0.f, 20.f, 35.f };
-		view = glm::lookAt(position, vec3{ 0.0f, 0.2f, 0.0f }, vec3{ 0.f, 1.f, 0.f });
+		view = glm::lookAt(position, vec3{ 0.0f, 0.1f, 0.0f }, vec3{ 0.f, 1.f, 0.f });
 		perspective = glm::perspectiveFov(45.f, (float)width, (float)height, 0.1f, 1000.f);
 		
 		//copy matrix in ubo
