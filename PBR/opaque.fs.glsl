@@ -44,7 +44,7 @@ float DistributionGGX(vec3 N, vec3 H, float roughness)
     float denom = (NdotH2 * (a2 - 1.0) + 1.0);
     denom = PI * denom * denom;
 
-    return nom / denom;
+    return nom / max( denom, 0.00001f );
 }
 
 //Geometric Function
@@ -72,21 +72,13 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 	return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 }
 
-vec3 Specular_Fresnel_Schlick( in vec3 SpecularColor, in vec3 PixelNormal, in vec3 LightDir )
-{
-    float NdotL = max( 0, dot( PixelNormal, LightDir ) );
-    return SpecularColor + ( 1 - SpecularColor ) * pow( ( 1 - NdotL ), 5 );
-}
-
-
-
 void main(void)
 {
 //--------------------------------------> Light Pos 
     //(could be passed to shader)
-	vec3 lightDir = normalize(vec3(-.5, -.5, -0.8));
-	vec3 lightColor = vec3(2.);
-
+	vec3 lightPos = normalize(vec3(10., 10., 10.));
+	vec3 lightColor = vec3(1.);
+	vec3 L = normalize(lightPos - v_Position);
 
 //---------------------------------------> AO / Roughness / Metallic Texture
 	//vec3 ORMLinear = pow(texture(u_ORMTexture, v_TexCoords).rgb, vec3(2.2));
@@ -96,8 +88,8 @@ void main(void)
 	float metallic = ORMLinear.b;
 
 	//without texture
-	AO = 0.2f;
-	roughness = 0.3f;
+	AO = 1.0f;
+	roughness = 1.0f;
 	metallic = 0.0f;
 //---------------------------------------> View direction (V)
 	vec3 viewDir = normalize(u_CameraPosition - v_Position);
@@ -117,7 +109,8 @@ void main(void)
 //-----------------------------------------> Lambertian Diffuse BRDF
 	//vec3 baseColor = texture2D(u_DiffuseTexture, v_TexCoords).rgb;
 	//whitout texture
-	vec3 baseColor = vec3(1.0, 0.0001, 0.0001);
+	vec3 baseColor = vec3(0.5, 0.0, 0.0);
+	//baseColor = baseColor * 1.0 / PI;
 
 //----------------------------------------> Specular reflectance at normal incidence
 	vec3 f0 = vec3(0.04);
@@ -130,23 +123,24 @@ void main(void)
 	//per light (only one here)
 	for(int i = 0; i < 1; i++)
 	{
-		vec3 halfVec = normalize(viewDir + (-lightDir[i]));
-		float dist = length(lightDir[i] - v_Position);
+		vec3 halfVec = normalize(viewDir + L);
+		float dist = length(lightPos - v_Position);
+
 		float attenuation = 1.0 / pow(dist, 2.0);
 		vec3 radiance = lightColor * attenuation;
 
 		float NdotH = clamp(dot(N, halfVec), 0., 1.);
-		float NdotL = clamp(dot(N, -lightDir), 0., 1.);
+		float NdotL = clamp(dot(N, L), 0., 1.);
 		float VdotH = clamp(dot(viewDir, halfVec), 0., 1.);
-		float LdotH = clamp(dot(-lightDir, halfVec), 0., 1.0);
+		float LdotH = clamp(dot(L, halfVec), 0., 1.0);
 		float HdotV = clamp(dot(halfVec, viewDir), 0., 1.0);
 
 		//GGX NDF
 		float SpecularDistribution = DistributionGGX(N, halfVec, roughness);
 		//Geometric Shadow
-		float GeometricFunction = GeometrySmith(N, viewDir, -lightDir, roughness);
+		float GeometricFunction = GeometrySmith(N, viewDir, L, roughness);
 		//fresnel
-		vec3 Fresnel = clamp(Specular_Fresnel_Schlick(f0, N, -lightDir), 0., 1.0);
+		vec3 Fresnel = fresnelSchlick(HdotV, f0);
 
 		vec3 specularity = ( Fresnel * SpecularDistribution * GeometricFunction )
 		                   / (4.0 * NdotV * NdotL + 0.001);
@@ -156,15 +150,20 @@ void main(void)
 		vec3 kD = vec3(1.0) - ks;
 		kD *= 1.0 - metallic;
 
-		reflectance += ( kD * baseColor / PI + specularity) * radiance * NdotL;
+		//reflectance += ( kD * baseColor / PI + specularity) * radiance * NdotL;
+		reflectance = vec3(SpecularDistribution);
 	}
 
 //---------------------------------------> Cubemap
 	vec3 irradiance = texture(u_cubeMap, R).rgb;
 
 //--------------------------------------->DiffuseColor
-    vec3 ambient = vec3(0.3) * baseColor * AO;
+    vec3 ambient = vec3(0.03) * baseColor * AO;
     vec3 color = ambient + reflectance;
 	
-	o_FragColor = vec4(color, 1.0);
+	color = color / ( color + vec3(1.0));
+	//gamma correction 
+	color = pow(color, vec3(1.0 / 2.2));
+
+	o_FragColor = vec4(reflectance, 1.0);
 }
