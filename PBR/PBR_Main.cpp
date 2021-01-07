@@ -214,9 +214,9 @@ struct Application
 		mat4 world(1.f), view, perspective;
 		
 		world = glm::rotate(world, (float)glfwGetTime(), vec3{ 0.f, 1.f, 0.f });
-		vec3 position = {0.f, 0.5f, 1.f };
+		vec3 position = {0.f, 0.2f, 1.f };
 		//vec3 position = {0.f, 20.f, 35.f };
-		view = glm::lookAt(position, vec3{ 0.1f, 0.3f, 0.1f }, vec3{ 0.f, 1.f, 0.f });
+		view = glm::lookAt(position, vec3{ 0.0f, 0.2f, 0.0f }, vec3{ 0.f, 1.f, 0.f });
 		perspective = glm::perspectiveFov(45.f, (float)width, (float)height, 0.1f, 1000.f);
 		
 		//copy matrix in ubo

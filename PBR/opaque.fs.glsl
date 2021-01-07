@@ -31,7 +31,8 @@ float PI = 3.1416;
 
 //PBR
 //https://www.jordanstevenstechart.com/physically-based-rendering
-//NDF
+//Real Shading in Unreal Engine 4 by Brian Karis, Epic Games
+//Normal Distribution Function
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
     float a = roughness*roughness;
@@ -46,70 +47,90 @@ float DistributionGGX(vec3 N, vec3 H, float roughness)
     return nom / denom;
 }
 
-//GSF
-float GeometrySmith(float roughness, float ndotv, float ndotl)
+//Geometric Function
+float GeometrySchlickGGX(float NdotV, float k)
 {
-    float r2 = roughness * roughness;
-    float gv = ndotl * sqrt(ndotv * (ndotv - ndotv * r2) + r2);
-    float gl = ndotv * sqrt(ndotl * (ndotl - ndotl * r2) + r2);
-    return 0.5 / max(gv + gl, 0.00001);
+    float nom   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+	
+    return nom / denom;
 }
-    
-// Fresnel
+  
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float k)
+{
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx1 = GeometrySchlickGGX(NdotV, k);
+    float ggx2 = GeometrySchlickGGX(NdotL, k);
+	
+    return ggx1 * ggx2;
+}
 
+// Fresnel
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
 	return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
-    //return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+}
+
+vec3 Specular_Fresnel_Schlick( in vec3 SpecularColor, in vec3 PixelNormal, in vec3 LightDir )
+{
+    float NdotL = max( 0, dot( PixelNormal, LightDir ) );
+    return SpecularColor + ( 1 - SpecularColor ) * pow( ( 1 - NdotL ), 5 );
 }
 
 void main(void)
 {
-
-	//vec3 ORMLinear = pow(texture(u_ORMTexture, v_TexCoords).rgb, vec3(2.2));
-	vec3 ORMLinear = texture(u_ORMTexture, v_TexCoords).rgb;
-	float AO = ORMLinear.r;
-	float roughness = ORMLinear.g;
-	float metallic = ORMLinear.b;
-
-	//lights
+//--------------------------------------> Light Pos 
+    //(could be passed to shader)
 	//const vec3 L[2] = vec3[2](normalize(vec3(0.3, 0., 0.8)), normalize(vec3(0.0, 0.0, -1.0)));
 	//const vec3 lightColor[2] = vec3[2](vec3(1.0, 1.0, 1.0), vec3(0.5, 0.5, 0.5));
 	
 	vec3 lightDir = normalize(vec3(-.5, -.5, -0.5));
 	vec3 lightColor = vec3(1.);
 
-	vec3 N = normalize(v_Normal);
-	vec3 viewDir = normalize(u_CameraPosition - v_Position);
-	vec3 R = reflect(viewDir, N); 
 
-	//NORMALE
+//---------------------------------------> AO / Roughness / Metallic Texture
+	//vec3 ORMLinear = pow(texture(u_ORMTexture, v_TexCoords).rgb, vec3(2.2));
+	vec3 ORMLinear = texture(u_ORMTexture, v_TexCoords).rgb;
+	float AO = ORMLinear.r;
+	float roughness = ORMLinear.g;
+	float metallic = ORMLinear.b;
+
+	//without texture
+	roughness = 0.2f;
+	metallic = 0.0f;
+//---------------------------------------> View direction (V)
+	vec3 viewDir = normalize(u_CameraPosition - v_Position);
+
+//----------------------------------------> Normale (N)
+	vec3 N = normalize(v_Normal);
+	vec3 R = reflect(viewDir, N); 
+	//Tangente
 	vec3 T = normalize(v_Tangent.xyz);
 	vec3 B = normalize(cross(N, T) * v_Tangent.w);
 	// TBN
 	mat3 TBN = mat3(T, B, N);
-	// N
-   // N = texture(u_NormalTexture, v_TexCoords).rgb * 2.0 - 1.0;
+	//with texture
+    //N = texture(u_NormalTexture, v_TexCoords).rgb * 2.0 - 1.0;
 	//N = normalize(TBN * N);
 
-	//---------------------------------->BASE COLOR
+//-----------------------------------------> Lambertian Diffuse BRDF
 	//vec3 baseColor = texture2D(u_DiffuseTexture, v_TexCoords).rgb;
-
 	//whitout texture
 	vec3 baseColor = vec3(0.5, 0.5, 0.5);
-	roughness = 1.f;
-	metallic = 0.f;
+	baseColor = baseColor * 1 / PI;
 
-	//reflectance
+
+//----------------------------------------> Specular reflectance at normal incidence
 	vec3 f0 = vec3(0.04);
 	f0 = mix(f0, baseColor, metallic);
 
 	float NdotV = clamp(dot(N, viewDir), 0., 1.);
 
-	//per light 
+//---------------------------------------> Cook-Torrance reflectance equation
 	vec3 reflectance = vec3(0.);
-	//for(int i = 0; i < 1; i++)
-	//{
+	for(int i = 0; i < 1; i++)
+	{
 		vec3 halfVec = normalize(viewDir + (-lightDir));
 		float attenuation = 0.5;
 		vec3 radiance = lightColor * attenuation;
@@ -123,38 +144,34 @@ void main(void)
 		//GGX NDF
 		float SpecularDistribution = DistributionGGX(N, halfVec, roughness);
 		//Geometric Shadow
-		float GeometricShadow = GeometrySmith(roughness, NdotV, NdotL);
+		float GeometricFunction = GeometrySmith(N, viewDir, -lightDir, roughness);
 		//fresnel
-		vec3 Fresnel = fresnelSchlick(HdotV, f0);
+		vec3 Fresnel = clamp(Specular_Fresnel_Schlick(f0, N, -lightDir), 0., 1.0);
 
-		vec3 specularity = Fresnel * (SpecularDistribution * GeometricShadow * PI * NdotL);
-		///(4 * NdotV * NdotL + 0.001);
+		vec3 specularity = ( Fresnel * SpecularDistribution * GeometricFunction )
+		                   / (4.0 * NdotV * NdotL + 0.001);
 		
 		//coefficient
-		vec3 ks = Fresnel;
+		vec3 ks = vec3(0.0);
 		vec3 kD = vec3(1.0) - ks;
 		kD *= 1.0 - metallic;
 
-		reflectance += ( kD * baseColor / PI + specularity) * radiance * NdotL;
-		//reflectance += specularity;
-	//}
-
+		reflectance = ( kD * baseColor + specularity) * NdotL;
+	}
 
 	//ambiant lighting
-	//vec3 kS = fresnelSchlick(NdotV, f0);
-	//vec3 kD = 1.0 - kS;
-	//kD *= 1.0 - metallic;
+	vec3 kS = clamp(Specular_Fresnel_Schlick(f0, N, -lightDir), 0., 1.0);
+	vec3 kD = 1.0 - kS;
+	kD *= 1.0 - metallic;
 
-	//cubemap
-
+//---------------------------------------> Cubemap
 	vec3 irradiance = texture(u_cubeMap, R).rgb;
 
-	//DiffuseColor
-	//vec3 diffuseColor =  reflectance * irradiance;
-	vec3 diffuseColor = baseColor;// * irradiance;
+//--------------------------------------->DiffuseColor
+	vec3 diffuseColor =  reflectance * irradiance;
 	vec3 ambient = ( kD * diffuseColor );// * AO;
 
-	vec3 color = ambient + reflectance;
+	vec3 color = diffuseColor + reflectance;
 
 	o_FragColor = vec4(color, 1.0);
 }
