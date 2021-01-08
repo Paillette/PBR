@@ -26,7 +26,7 @@ layout(binding = 0) uniform sampler2D u_DiffuseTexture;
 layout(binding = 1) uniform sampler2D u_NormalTexture;
 layout(binding = 2) uniform sampler2D u_ORMTexture;
 layout(binding = 3) uniform samplerCube u_cubeMap;
-layout(binding = 4) uniform samplerCube u_prefilterdCubeMap;
+layout(binding = 4) uniform samplerCube u_irradianceCubeMap;
 
 float PI = 3.1416;
 
@@ -180,12 +180,12 @@ void main(void)
 	vec3 kD = vec3(1.0) - ks;
 	kD *= 1.0 - metallic;
 
-	vec3 irradiance = texture(u_cubeMap, N).rgb;
+	vec3 irradiance = texture(u_irradianceCubeMap, N).rgb;
 	vec3 diffuse = irradiance * baseColor;
 //Prefilter map
 //https://learnopengl.com/PBR/IBL/Specular-IBL
 	const float MAX_REFLECTION_LOD = 4;
-	vec3 prefilterColor =texture(u_prefilterdCubeMap, N).rgb;
+	//vec3 prefilterColor =texture(u_prefilterdCubeMap, N).rgb;
 
 
 //--------------------------------------->DiffuseColor
@@ -196,5 +196,5 @@ void main(void)
 	//gamma correction 
 	color = pow(color, vec3(1.0 / 2.2));
 
-	o_FragColor = vec4(prefilterColor, 1.0);
+	o_FragColor = vec4(irradiance, 1.0);
 }
