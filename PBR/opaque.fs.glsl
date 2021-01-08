@@ -26,8 +26,27 @@ layout(binding = 0) uniform sampler2D u_DiffuseTexture;
 layout(binding = 1) uniform sampler2D u_NormalTexture;
 layout(binding = 2) uniform sampler2D u_ORMTexture;
 layout(binding = 3) uniform samplerCube u_cubeMap;
+layout(binding = 4) uniform samplerCube u_prefilterdCubeMap;
 
 float PI = 3.1416;
+
+vec3 TBNnormal()
+{
+    vec3 tangentNormal = texture(u_NormalTexture, v_TexCoords).xyz * 2.0 - 1.0;
+
+    vec3 Q1  = dFdx(v_Position);
+    vec3 Q2  = dFdy(v_Position);
+    vec2 st1 = dFdx(v_TexCoords);
+    vec2 st2 = dFdy(v_TexCoords);
+
+    vec3 N   = normalize(v_Normal);
+    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
+    vec3 B  = -normalize(cross(N, T));
+    mat3 TBN = mat3(T, B, N);
+
+    return normalize(TBN * tangentNormal);
+}
+
 
 //PBR
 //https://www.jordanstevenstechart.com/physically-based-rendering
@@ -66,18 +85,27 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float k)
     return ggx1 * ggx2;
 }
 
-// Fresnel
+// Fresnel in reflectance 
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
 	return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 }
 
+//Fresnel for environnement
+//https://learnopengl.com/PBR/IBL/Specular-IBL
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+} 
+
+
+
 void main(void)
 {
 //--------------------------------------> Light Pos 
     //(could be passed to shader)
-	vec3 lightPos = normalize(vec3(10., 10., 10.));
-	vec3 lightColor = vec3(1.);
+	vec3 lightPos = normalize(vec3(20, 50., 100.));
+	vec3 lightColor = vec3(5.);
 	vec3 L = normalize(lightPos - v_Position);
 
 //---------------------------------------> AO / Roughness / Metallic Texture
@@ -88,29 +116,20 @@ void main(void)
 	float metallic = ORMLinear.b;
 
 	//without texture
-	AO = 1.0f;
-	roughness = 0.20f;
-	metallic = 0.0f;
+	//AO = 1.0f;
+	//roughness = 0.20f;
+	//metallic = 0.0f;
 //---------------------------------------> View direction (V)
 	vec3 viewDir = normalize(u_CameraPosition - v_Position);
 
 //----------------------------------------> Normale (N)
-	vec3 N = normalize(v_Normal);
+	vec3 N = TBNnormal();
 	vec3 R = reflect(viewDir, N); 
-	//Tangente
-	vec3 T = normalize(v_Tangent.xyz);
-	vec3 B = normalize(cross(N, T) * v_Tangent.w);
-	// TBN
-	mat3 TBN = mat3(T, B, N);
-	//with texture
-    //N = texture(u_NormalTexture, v_TexCoords).rgb * 2.0 - 1.0;
-	//N = normalize(TBN * N);
 
 //-----------------------------------------> Lambertian Diffuse BRDF
-	//vec3 baseColor = texture2D(u_DiffuseTexture, v_TexCoords).rgb;
+	vec3 baseColor = texture2D(u_DiffuseTexture, v_TexCoords).rgb;
 	//whitout texture
-	vec3 baseColor = vec3(0.5, 0.0, 0.0);
-	//baseColor = baseColor * 1.0 / PI;
+	//vec3 baseColor = vec3(0.5, 0.0, 0.0);
 
 //----------------------------------------> Specular reflectance at normal incidence
 	vec3 f0 = vec3(0.04);
@@ -154,15 +173,28 @@ void main(void)
 	}
 
 //---------------------------------------> Cubemap
-	vec3 irradiance = texture(u_cubeMap, R).rgb;
+	vec3 Fresnel = fresnelSchlickRoughness(NdotV, f0, roughness);
+
+	//coefficient
+	vec3 ks = Fresnel;
+	vec3 kD = vec3(1.0) - ks;
+	kD *= 1.0 - metallic;
+
+	vec3 irradiance = texture(u_cubeMap, N).rgb;
+	vec3 diffuse = irradiance * baseColor;
+//Prefilter map
+//https://learnopengl.com/PBR/IBL/Specular-IBL
+	const float MAX_REFLECTION_LOD = 4;
+	vec3 prefilterColor =texture(u_prefilterdCubeMap, N).rgb;
+
 
 //--------------------------------------->DiffuseColor
-    vec3 ambient = vec3(0.03) * baseColor * AO;
+    vec3 ambient = vec3(0.1) * baseColor * AO;
     vec3 color = ambient + reflectance;
 	
 	color = color / ( color + vec3(1.0));
 	//gamma correction 
 	color = pow(color, vec3(1.0 / 2.2));
 
-	o_FragColor = vec4(color, 1.0);
+	o_FragColor = vec4(prefilterColor, 1.0);
 }
