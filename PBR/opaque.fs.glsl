@@ -26,6 +26,7 @@ layout(binding = 0) uniform sampler2D u_DiffuseTexture;
 layout(binding = 1) uniform sampler2D u_NormalTexture;
 layout(binding = 2) uniform sampler2D u_ORMTexture;
 layout(binding = 3) uniform samplerCube u_cubeMap;
+layout(binding = 4) uniform samplerCube u_prefilterdCubeMap;
 
 float PI = 3.1416;
 
@@ -84,11 +85,20 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float k)
     return ggx1 * ggx2;
 }
 
-// Fresnel
+// Fresnel in reflectance 
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
 	return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 }
+
+//Fresnel for environnement
+//https://learnopengl.com/PBR/IBL/Specular-IBL
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+} 
+
+
 
 void main(void)
 {
@@ -163,7 +173,20 @@ void main(void)
 	}
 
 //---------------------------------------> Cubemap
-	vec3 irradiance = texture(u_cubeMap, R).rgb;
+	vec3 Fresnel = fresnelSchlickRoughness(NdotV, f0, roughness);
+
+	//coefficient
+	vec3 ks = Fresnel;
+	vec3 kD = vec3(1.0) - ks;
+	kD *= 1.0 - metallic;
+
+	vec3 irradiance = texture(u_cubeMap, N).rgb;
+	vec3 diffuse = irradiance * baseColor;
+//Prefilter map
+//https://learnopengl.com/PBR/IBL/Specular-IBL
+	const float MAX_REFLECTION_LOD = 4;
+	vec3 prefilterColor =texture(u_prefilterdCubeMap, N).rgb;
+
 
 //--------------------------------------->DiffuseColor
     vec3 ambient = vec3(0.1) * baseColor * AO;
@@ -173,5 +196,5 @@ void main(void)
 	//gamma correction 
 	color = pow(color, vec3(1.0 / 2.2));
 
-	o_FragColor = vec4(color, 1.0);
+	o_FragColor = vec4(prefilterColor, 1.0);
 }

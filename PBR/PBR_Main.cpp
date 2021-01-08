@@ -49,6 +49,7 @@ struct Application
 	uint32_t cubeMapID;
 	GLShader g_skyboxShader;
 	GLuint skyboxVAO, skyboxVBO;
+	unsigned int prefilterMap;
 
 	uint32_t LoadCubemap(const char* pathes[6])
 	{
@@ -92,6 +93,23 @@ struct Application
 		};
 
 		cubeMapID = LoadCubemap(pathes);
+	}
+
+	void InitPrefilteredCubeMap()
+	{       
+		glGenTextures(1, &prefilterMap);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, prefilterMap);
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 128, 128, 0, GL_RGB, GL_FLOAT, nullptr);
+		}
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 	}
 
 	void Initialize()
@@ -190,6 +208,10 @@ struct Application
 		//Cubemap
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapID);
+		InitPrefilteredCubeMap();
+
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, prefilterMap);
 
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
