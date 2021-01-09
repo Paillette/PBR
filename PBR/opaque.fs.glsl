@@ -120,12 +120,26 @@ vec3 EnvRemap(vec3 c)
 	return pow(2. * c, vec3(2.2));
 }
 
+// calcul du facteur speculaire, methode Blinn-Phong
+float BlinnPhong(vec3 N, vec3 L, vec3 V, float shininess)
+{
+	// reflexion inspire du modele micro-facette (H approxime la normale de la micro-facette)
+	vec3 H = normalize(L + V);
+	return pow(max(0.0, dot(N, H)), shininess);
+}
+
+// calcul du facteur diffus, suivant la loi du cosinus de Lambert
+float Lambert(vec3 N, vec3 L)
+{
+	return max(0.0, dot(N, L));
+}
+
 void main(void)
 {
 //--------------------------------------> Light Pos 
     //(could be passed to shader)
-	vec3 lightPos = normalize(vec3(20, 50., 100.));
-	vec3 lightColor = vec3(1.);
+	vec3 lightPos = normalize(vec3(50, 50., 50.));
+	vec3 lightColor = vec3(5.);
 	vec3 L = normalize(lightPos - v_Position);
 
 //---------------------------------------> AO / Roughness / Metallic Texture
@@ -158,6 +172,7 @@ void main(void)
 	else //Other object
 	{
 		N = TBNnormal();
+
 	}
 
 	vec3 R = reflect(viewDir, N); 
@@ -172,6 +187,7 @@ void main(void)
 	{
 		baseColor = texture2D(u_DiffuseTexture, v_TexCoords).rgb;
 	}
+	baseColor = pow(baseColor, vec3(2.2));
 
 //----------------------------------------> Specular reflectance at normal incidence
 	vec3 f0 = vec3(0.04);
@@ -188,7 +204,7 @@ void main(void)
 		vec3 halfVec = normalize(viewDir + L);
 		float dist = length(lightPos - v_Position);
 
-		float attenuation = 1.0 / pow(dist, 2.0);
+		float attenuation = 1.0 /  pow(dist, 2.0);
 		vec3 radiance = lightColor * attenuation;
 
 		float NdotH = clamp(dot(N, halfVec), 0., 1.);
@@ -212,6 +228,7 @@ void main(void)
 		kD *= 1.0 - metallic;
 
 		reflectance += ( kD * baseColor / PI + specularity) * radiance * NdotL;
+	
 	}
 
 //---------------------------------------> Cubemap
@@ -224,15 +241,15 @@ void main(void)
 
 //--------------------------------------> Cubemap
     //radiance and irradiance textures created in a software (cmftStudio) pass to shader 
-	vec3 cubeMap = texture(u_cubeMap, N).rgb;
-	vec3 radiance = texture(u_radianceCubeMap, N).rgb;
-	vec3 irradiance = texture(u_irradianceCubeMap, N).rgb;
+	vec3 cubeMap = texture(u_cubeMap, normalize(v_Normal)).rgb;
+	vec3 radiance = texture(u_radianceCubeMap, normalize(v_Normal)).rgb;
+	vec3 irradiance = texture(u_irradianceCubeMap, normalize(v_Normal)).rgb;
 
 	//Mix between textures with roughness
 	vec3 env = mix(cubeMap, radiance, clamp(pow(roughness, 2.0) * 4., 0., 1.));
-	env = mix(env, irradiance, clamp((pow(roughness, 2.0) - 0.25 ) / 0.75, 0., 1.));
+	//env = mix(env, irradiance, clamp((pow(roughness, 2.0) - 0.25 ) / 0.75, 0., 1.));
 
-	vec3 envSpecularColor = EnvBRDFApprox(vec3(1.), pow(roughness, 2.0), NdotV);
+	vec3 envSpecularColor = EnvBRDFApprox(vec3(0.04), pow(roughness, 2.0), NdotV);
 
 	vec3 diffuse = irradiance * baseColor;
 	vec3 specular = envSpecularColor * env * Fresnel;

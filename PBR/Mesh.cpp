@@ -87,8 +87,8 @@ void ParseMaterial(Material& mat, FbxNode* node)
 			}
 		}
 
-		const FbxProperty property_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sEmissive);
-		const FbxProperty factor_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sEmissiveFactor);
+		const FbxProperty property_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sSpecular);
+		const FbxProperty factor_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sSpecularFactor);
 		const FbxProperty property_shiny = fbx_material->FindProperty(FbxSurfaceMaterial::sShininess);
 		if (property_spec.IsValid())
 		{
@@ -286,7 +286,7 @@ bool Mesh::ParseFBX(Mesh* obj, const char* filepath)
 	FbxIOSettings *ioSettings = FbxIOSettings::Create(g_fbxManager, IOSROOT);
 	g_fbxManager->SetIOSettings(ioSettings);
 
-	g_scene = FbxScene::Create(g_fbxManager, "Le Nom de Ma Scene");
+	g_scene = FbxScene::Create(g_fbxManager, "PBRScene");
 	
 	FbxImporter *importer = FbxImporter::Create(g_fbxManager, "");
 	relativePath += filepath;

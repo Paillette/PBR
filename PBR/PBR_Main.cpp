@@ -35,7 +35,7 @@
 const char* glsl_version = "#version 420";
 
 //PBR settings for GUI
-ImColor albedo;
+ImColor albedo = ImColor(1.0f, 0.0f, 0.0f);
 float roughness;
 float metallic;
 bool displaySphere = false;
@@ -204,7 +204,7 @@ struct Application
 		//Load meshes
 		otherMesh = new Mesh();
 		sphereMesh = new Mesh();
-		Mesh::ParseFBX(otherMesh, "model/PetitRobot.fbx");
+		Mesh::ParseFBX(otherMesh, "model/Mando_Helmet.fbx");
 		Mesh::ParseFBX(sphereMesh, "model/testSphere.fbx");
 		object = otherMesh;
 
@@ -282,13 +282,17 @@ struct Application
 
 		mat4 world(1.f), view, perspective;
 		
-		world = glm::rotate(world, (float)glfwGetTime(), vec3{ 0.f, 1.f, 0.f });
+		world = glm::rotate(world, (float)glfwGetTime() * 0.5f, vec3{ 0.f, 1.f, 0.f });
 		vec3 position = {0.f, 0.4f, 1.2f };
 		
-		if(!displaySphere)
-			world = glm::scale(world, vec3(0.03));
-
 		view = glm::lookAt(position, vec3{ 0.0f, 0.1f, 0.0f }, vec3{ 0.f, 1.f, 0.f });
+
+		if (!displaySphere)
+		{
+			view = glm::lookAt(position, vec3{ 0.0f, 0.3f, 0.0f }, vec3{ 0.f, 1.f, 0.f });
+			world = glm::scale(world, vec3(0.017));
+		}
+
 		perspective = glm::perspectiveFov(45.f, (float)width, (float)height, 0.1f, 1000.f);
 		
 		//copy matrix in ubo
