@@ -1,7 +1,3 @@
-//
-//
-//
-
 #include "OpenGLcore.h"
 #include <GLFW/glfw3.h>
 
@@ -22,15 +18,37 @@
 
 #include "stb_image.h"
 
+//ImGUI
+#include "imgui.cpp"
+#include "examples\\imgui_impl_glfw.cpp"
+#include "examples\\imgui_impl_opengl3.cpp"
+#include "imgui_draw.cpp"
+#include "imgui_widgets.cpp"
+#include "imgui_demo.cpp"
+
 #include "../common/GLShader.h"
 #include "mat4.h"
 #include "Texture.h"
 #include "Mesh.h"
 #include "Framebuffer.h"
 
+const char* glsl_version = "#version 420";
+
+//PBR settings for GUI
+ImColor albedo;
+float roughness;
+float metallic;
+bool displaySphere = false;
+
+//Objects
+Mesh* sphereMesh;
+Mesh* otherMesh;
+
+//Rendering
 struct Application
 {
 	Mesh* object;
+
 	uint32_t quadVAO;
 
 	GLShader opaqueShader;
@@ -82,6 +100,39 @@ struct Application
 		return cubemapTexture;
 	}
 
+	void GenerateBuffers(Mesh* object)
+	{
+		int32_t positionLocation = 0; //  glGetAttribLocation(program, "a_Position");
+		int32_t normalLocation = 1; // glGetAttribLocation(program, "a_Normal");
+		int32_t texcoordsLocation = 2; // glGetAttribLocation(program, "a_TexCoords");
+		int32_t tangentLocation = 3;
+
+		for (uint32_t i = 0; i < object->meshCount; i++)
+		{
+			SubMesh& mesh = object->meshes[i];
+
+			glGenVertexArrays(1, &mesh.VAO);
+			glBindVertexArray(mesh.VAO);
+
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.IBO);
+
+			glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
+			glVertexAttribPointer(positionLocation, 3, GL_FLOAT, false, sizeof(Vertex), 0);
+			glVertexAttribPointer(normalLocation, 3, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, normal));
+			glVertexAttribPointer(texcoordsLocation, 2, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, texcoords));
+			glVertexAttribPointer(tangentLocation, 4, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, tangent));
+
+			glEnableVertexAttribArray(positionLocation);
+			glEnableVertexAttribArray(normalLocation);
+			glEnableVertexAttribArray(texcoordsLocation);
+			glEnableVertexAttribArray(tangentLocation);
+
+			glBindVertexArray(0);
+			DeleteBufferObject(mesh.VBO);
+			DeleteBufferObject(mesh.IBO);
+		}
+	}
+
 	void InitCubeMap()
 	{
 		const char* pathes[6] = {
@@ -124,8 +175,6 @@ struct Application
 		radianceMapID = LoadCubemap(pathes);
 	}
 
-
-
 	void Initialize()
 	{
 		GLenum error = glewInit();
@@ -152,9 +201,12 @@ struct Application
 		InitIrradianceMap();
 		InitRadianceMap();
 
-		object = new Mesh();
-
-		Mesh::ParseFBX(object, "model/PetitRobot.fbx");
+		//Load meshes
+		otherMesh = new Mesh();
+		sphereMesh = new Mesh();
+		Mesh::ParseFBX(otherMesh, "model/PetitRobot.fbx");
+		Mesh::ParseFBX(sphereMesh, "model/testSphere.fbx");
+		object = otherMesh;
 
 		glGenBuffers(1, &matrixUBO);
 		glBindBuffer(GL_UNIFORM_BUFFER, matrixUBO);
@@ -169,35 +221,9 @@ struct Application
 
 		int32_t program = opaqueShader.GetProgram();
 		glUseProgram(program);
-		int32_t positionLocation = 0; //  glGetAttribLocation(program, "a_Position");
-		int32_t normalLocation = 1; // glGetAttribLocation(program, "a_Normal");
-		int32_t texcoordsLocation = 2; // glGetAttribLocation(program, "a_TexCoords");
-		int32_t tangentLocation = 3;
-
-		for (uint32_t i = 0; i < object->meshCount; i++)
-		{
-			SubMesh& mesh = object->meshes[i];
-
-			glGenVertexArrays(1, &mesh.VAO);
-			glBindVertexArray(mesh.VAO);
-
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.IBO);
-
-			glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
-			glVertexAttribPointer(positionLocation, 3, GL_FLOAT, false, sizeof(Vertex), 0);
-			glVertexAttribPointer(normalLocation, 3, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, normal));
-			glVertexAttribPointer(texcoordsLocation, 2, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, texcoords));
-			glVertexAttribPointer(tangentLocation, 4, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, tangent));
-
-			glEnableVertexAttribArray(positionLocation);
-			glEnableVertexAttribArray(normalLocation);
-			glEnableVertexAttribArray(texcoordsLocation);
-			glEnableVertexAttribArray(tangentLocation);
-
-			glBindVertexArray(0);
-			DeleteBufferObject(mesh.VBO);
-			DeleteBufferObject(mesh.IBO);
-		}
+		
+		GenerateBuffers(otherMesh);
+		GenerateBuffers(sphereMesh);
 
 		glEnable(GL_FRAMEBUFFER_SRGB);
 
@@ -258,7 +284,10 @@ struct Application
 		
 		world = glm::rotate(world, (float)glfwGetTime(), vec3{ 0.f, 1.f, 0.f });
 		vec3 position = {0.f, 0.4f, 1.2f };
-		world = glm::scale(world, vec3(0.03));
+		
+		if(!displaySphere)
+			world = glm::scale(world, vec3(0.03));
+
 		view = glm::lookAt(position, vec3{ 0.0f, 0.1f, 0.0f }, vec3{ 0.f, 1.f, 0.f });
 		perspective = glm::perspectiveFov(45.f, (float)width, (float)height, 0.1f, 1000.f);
 		
@@ -275,14 +304,23 @@ struct Application
 		int32_t camPosLocation = glGetUniformLocation(program, "u_CameraPosition");
 		glUniform3fv(camPosLocation, 1, &position.x);
 
-		int32_t ambientLocation = glGetUniformLocation(program, "u_Material.AmbientColor");
-		int32_t diffuseLocation = glGetUniformLocation(program, "u_Material.DiffuseColor");
-		int32_t specularLocation = glGetUniformLocation(program, "u_Material.SpecularColor");
-		int32_t shininessLocation = glGetUniformLocation(program, "u_Material.Shininess");
+		//GUI uniforms
+		int32_t locAlbedo = glGetUniformLocation(program, "u_albedo");
+		glUniform3fv(locAlbedo, 1, &albedo.Value.x);
+
+		int32_t locRoughness = glGetUniformLocation(program, "u_roughness");
+		glUniform1f(locRoughness, roughness);
+
+		int32_t locmetallic = glGetUniformLocation(program, "u_metallic");
+		glUniform1f(locmetallic, metallic);
+
+		int32_t locDisplayShere = glGetUniformLocation(program, "u_displaySphere");
+		glUniform1i(locDisplayShere, displaySphere);
 
 		for (uint32_t i = 0; i < object->meshCount; i++)
 		{
 			SubMesh& mesh = object->meshes[i];
+			glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
 			Material& mat = mesh.materialId > -1 ? object->materials[mesh.materialId] : Material::defaultMaterial;
 
 			//copy in UBO
@@ -301,6 +339,7 @@ struct Application
 			//Texture spec
 			glActiveTexture(GL_TEXTURE2);
 			glBindTexture(GL_TEXTURE_2D, mat.specularTexture);
+			
 			glBindVertexArray(mesh.VAO);
 			glDrawElements(GL_TRIANGLES, object->meshes[i].indicesCount, GL_UNSIGNED_INT, 0);
 		}
@@ -325,6 +364,7 @@ struct Application
 		GLint locTime = glGetUniformLocation(program, "u_Time");
 		glUniform1f(locTime, time);
 
+		//Textures
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, offscreenBuffer.colorBuffer);
 
@@ -350,8 +390,11 @@ struct Application
 		glDeleteVertexArrays(1, &quadVAO);
 		quadVAO = 0;
 		
-		object->Destroy();
-		delete object;
+		sphereMesh->Destroy();
+		delete sphereMesh;
+
+		otherMesh->Destroy();
+		delete otherMesh;
 
 		Texture::PurgeTextures();
 		glDeleteTextures(1, &cubeMapID);
@@ -361,6 +404,7 @@ struct Application
 	}
 };
 
+#pragma region Inputs
 
 void ResizeCallback(GLFWwindow* window, int w, int h)
 {
@@ -372,6 +416,75 @@ void MouseCallback(GLFWwindow* , int, int, int) {
 
 }
 
+#pragma endregion
+
+#pragma region GUI
+
+//Init UI
+void InitialiseGUI(GLFWwindow* window)
+{
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init(glsl_version);
+	ImGui::StyleColorsClassic();
+}
+
+//Draw
+void DrawGUI(Application& app)
+{
+	// feed inputs to dear imgui, start new frame
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+	//ImGui::SetNextWindowSize(ImVec2(100, 100));
+	ImGui::SetNextWindowPos(ImVec2(0, 0));
+
+	// render your GUI
+	ImGui::Begin("PBR settings", 0, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
+	
+	//Change model
+	if (ImGui::Checkbox("Display Sphere", &displaySphere))
+	{
+		if (displaySphere)
+		{
+			app.object = sphereMesh;
+		}
+		else
+		{
+			app.object = otherMesh;
+		}
+	}
+
+	if (displaySphere)
+	{
+		//Albedo
+		static float color[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
+		if (ImGui::ColorEdit3("Albedo", color))
+		{
+			albedo = ImColor(color[0], color[1], color[2]);
+		}
+
+		//Roughness
+		static float f1 = 0.001f;
+		ImGui::SliderFloat("Roughness", &f1, 0.001f, 1.0f, "%.3f");
+		roughness = f1;
+
+		//Metallic
+		static float f2 = 0.123f;
+		ImGui::SliderFloat("Metallic", &f2, 0.0f, 1.0f, "%.3f");
+		metallic = f2;
+	}
+
+	ImGui::End();
+
+	// Render dear imgui into screen
+	ImGui::Render();
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+#pragma endregion
 
 int main(int argc, const char* argv[])
 {
@@ -410,6 +523,8 @@ int main(int argc, const char* argv[])
 	// toutes nos initialisations vont ici
 	app.Initialize();
 
+	InitialiseGUI(window);
+
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
 	{
@@ -417,6 +532,8 @@ int main(int argc, const char* argv[])
 		glfwGetWindowSize(window, &app.width, &app.height);
 
 		app.Render();
+
+		DrawGUI(app);
 
 		/* Swap front and back buffers */
 		glfwSwapBuffers(window);

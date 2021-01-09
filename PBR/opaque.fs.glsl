@@ -20,7 +20,10 @@ layout(binding = 1) uniform Materials
 };
 
 uniform vec3 u_CameraPosition;
-uniform float u_Time;
+uniform vec3 u_albedo;
+uniform float u_roughness;
+uniform float u_metallic;
+uniform bool u_displaySphere;
 
 layout(binding = 0) uniform sampler2D u_DiffuseTexture;
 layout(binding = 1) uniform sampler2D u_NormalTexture;
@@ -28,6 +31,7 @@ layout(binding = 2) uniform sampler2D u_ORMTexture;
 layout(binding = 3) uniform samplerCube u_cubeMap;
 layout(binding = 4) uniform samplerCube u_radianceCubeMap;
 layout(binding = 5) uniform samplerCube u_irradianceCubeMap;
+
 
 float PI = 3.1416;
 
@@ -125,28 +129,49 @@ void main(void)
 	vec3 L = normalize(lightPos - v_Position);
 
 //---------------------------------------> AO / Roughness / Metallic Texture
-	vec3 ORMLinear = texture(u_ORMTexture, v_TexCoords).rgb;
-	float AO = ORMLinear.r;
-	float roughness = ORMLinear.g;
-	float metallic = ORMLinear.b;
+	float AO;
+	float roughness;
+	float metallic;
 
-	//without texture
-	//AO = 1.0f;
-	//roughness = 1.f;
-	//metallic = 0.0f;
+	if(u_displaySphere) //Sphere
+	{
+		AO = 1.0f;
+		roughness = u_roughness;
+		metallic = u_metallic;
+	}
+	else //Other object
+	{
+		vec3 ORMLinear = texture(u_ORMTexture, v_TexCoords).rgb;
+		AO = ORMLinear.r;
+		roughness = ORMLinear.g;
+		metallic = ORMLinear.b;
+	}
 //---------------------------------------> View direction (V)
 	vec3 viewDir = normalize(u_CameraPosition - v_Position);
 
 //----------------------------------------> Normale (N)
-	vec3 N = TBNnormal();
-	//without texture
-	//N = normalize(v_Normal);
+	vec3 N;
+	if(u_displaySphere) //Sphere
+	{
+		N = normalize(v_Normal);
+	}
+	else //Other object
+	{
+		N = TBNnormal();
+	}
+
 	vec3 R = reflect(viewDir, N); 
 
 //-----------------------------------------> Lambertian Diffuse BRDF
-	vec3 baseColor = texture2D(u_DiffuseTexture, v_TexCoords).rgb;
-	//whitout texture
-	//baseColor = vec3(0.2, 0.1, 0.5);
+	vec3 baseColor;
+	if(u_displaySphere) //Sphere
+	{
+		baseColor = u_albedo;
+	}
+	else //Other object
+	{
+		baseColor = texture2D(u_DiffuseTexture, v_TexCoords).rgb;
+	}
 
 //----------------------------------------> Specular reflectance at normal incidence
 	vec3 f0 = vec3(0.04);
@@ -156,6 +181,7 @@ void main(void)
 
 //---------------------------------------> Cook-Torrance reflectance equation
 	vec3 reflectance = vec3(0.);
+	
 	//per light (only one here)
 	for(int i = 0; i < 1; i++)
 	{
