@@ -26,7 +26,8 @@ layout(binding = 0) uniform sampler2D u_DiffuseTexture;
 layout(binding = 1) uniform sampler2D u_NormalTexture;
 layout(binding = 2) uniform sampler2D u_ORMTexture;
 layout(binding = 3) uniform samplerCube u_cubeMap;
-layout(binding = 4) uniform samplerCube u_irradianceCubeMap;
+layout(binding = 4) uniform samplerCube u_radianceCubeMap;
+layout(binding = 5) uniform samplerCube u_irradianceCubeMap;
 
 float PI = 3.1416;
 
@@ -98,18 +99,32 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 } 
 
+//IBL
+// https://www.unrealengine.com/en-US/blog/physically-based-shading-on-mobile
+vec3 EnvBRDFApprox(vec3 specularColor, float roughness, float ndotv)
+{
+	const vec4 c0 = vec4(-1, -0.0275, -0.572, 0.022);
+	const vec4 c1 = vec4(1, 0.0425, 1.04, -0.04);
+	vec4 r = roughness * c0 + c1;
+	float a004 = min(r.x * r.x, exp2(-9.28 * ndotv)) * r.x + r.y;
+	vec2 AB = vec2(-1.04, 1.04) * a004 + r.zw;
+	return specularColor * AB.x + AB.y;
+}
 
+vec3 EnvRemap(vec3 c)
+{
+	return pow(2. * c, vec3(2.2));
+}
 
 void main(void)
 {
 //--------------------------------------> Light Pos 
     //(could be passed to shader)
 	vec3 lightPos = normalize(vec3(20, 50., 100.));
-	vec3 lightColor = vec3(5.);
+	vec3 lightColor = vec3(1.);
 	vec3 L = normalize(lightPos - v_Position);
 
 //---------------------------------------> AO / Roughness / Metallic Texture
-	//vec3 ORMLinear = pow(texture(u_ORMTexture, v_TexCoords).rgb, vec3(2.2));
 	vec3 ORMLinear = texture(u_ORMTexture, v_TexCoords).rgb;
 	float AO = ORMLinear.r;
 	float roughness = ORMLinear.g;
@@ -117,19 +132,21 @@ void main(void)
 
 	//without texture
 	//AO = 1.0f;
-	//roughness = 0.20f;
+	//roughness = 1.f;
 	//metallic = 0.0f;
 //---------------------------------------> View direction (V)
 	vec3 viewDir = normalize(u_CameraPosition - v_Position);
 
 //----------------------------------------> Normale (N)
 	vec3 N = TBNnormal();
+	//without texture
+	//N = normalize(v_Normal);
 	vec3 R = reflect(viewDir, N); 
 
 //-----------------------------------------> Lambertian Diffuse BRDF
 	vec3 baseColor = texture2D(u_DiffuseTexture, v_TexCoords).rgb;
 	//whitout texture
-	//vec3 baseColor = vec3(0.5, 0.0, 0.0);
+	//baseColor = vec3(0.2, 0.1, 0.5);
 
 //----------------------------------------> Specular reflectance at normal incidence
 	vec3 f0 = vec3(0.04);
@@ -153,7 +170,6 @@ void main(void)
 		float VdotH = clamp(dot(viewDir, halfVec), 0., 1.);
 		float LdotH = clamp(dot(L, halfVec), 0., 1.0);
 		float HdotV = clamp(dot(halfVec, viewDir), 0., 1.0);
-
 		//GGX NDF
 		float SpecularDistribution = DistributionGGX(N, halfVec, roughness);
 		//Geometric Shadow
@@ -180,21 +196,29 @@ void main(void)
 	vec3 kD = vec3(1.0) - ks;
 	kD *= 1.0 - metallic;
 
+//--------------------------------------> Cubemap
+    //radiance and irradiance textures created in a software (cmftStudio) pass to shader 
+	vec3 cubeMap = texture(u_cubeMap, N).rgb;
+	vec3 radiance = texture(u_radianceCubeMap, N).rgb;
 	vec3 irradiance = texture(u_irradianceCubeMap, N).rgb;
-	vec3 diffuse = irradiance * baseColor;
-//Prefilter map
-//https://learnopengl.com/PBR/IBL/Specular-IBL
-	const float MAX_REFLECTION_LOD = 4;
-	//vec3 prefilterColor =texture(u_prefilterdCubeMap, N).rgb;
 
+	//Mix between textures with roughness
+	vec3 env = mix(cubeMap, radiance, clamp(pow(roughness, 2.0) * 4., 0., 1.));
+	env = mix(env, irradiance, clamp((pow(roughness, 2.0) - 0.25 ) / 0.75, 0., 1.));
+
+	vec3 envSpecularColor = EnvBRDFApprox(vec3(1.), pow(roughness, 2.0), NdotV);
+
+	vec3 diffuse = irradiance * baseColor;
+	vec3 specular = envSpecularColor * env * Fresnel;
 
 //--------------------------------------->DiffuseColor
-    vec3 ambient = vec3(0.1) * baseColor * AO;
+	vec3 ambient = (kD * diffuse + specular) * AO;
     vec3 color = ambient + reflectance;
-	
+
 	color = color / ( color + vec3(1.0));
+
 	//gamma correction 
 	color = pow(color, vec3(1.0 / 2.2));
 
-	o_FragColor = vec4(irradiance, 1.0);
+	o_FragColor = vec4(color, 1.0);
 }

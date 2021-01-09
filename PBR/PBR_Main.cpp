@@ -48,6 +48,7 @@ struct Application
 	//cubemap 
 	uint32_t cubeMapID;
 	uint32_t irradianceMapID;
+	uint32_t radianceMapID;
 	GLShader g_skyboxShader;
 	GLuint skyboxVAO, skyboxVBO;
 
@@ -84,12 +85,12 @@ struct Application
 	void InitCubeMap()
 	{
 		const char* pathes[6] = {
-			"../data/envmaps/CubeMap_posx.png",
-			"../data/envmaps/CubeMap_negx.png",
-			"../data/envmaps/CubeMap_posy.png",
-			"../data/envmaps/CubeMap_negy.png",
-			"../data/envmaps/CubeMap_posz.png",
-			"../data/envmaps/CubeMap_negz.png"
+			"../data/envmaps/Studio_posx.png",
+			"../data/envmaps/Studio_negx.png",
+			"../data/envmaps/Studio_posy.png",
+			"../data/envmaps/Studio_negy.png",
+			"../data/envmaps/Studio_posz.png",
+			"../data/envmaps/Studio_negz.png"
 		};
 
 		cubeMapID = LoadCubemap(pathes);
@@ -98,16 +99,31 @@ struct Application
 	void InitIrradianceMap()
 	{
 		const char* pathes[6] = {
-			"../data/envmaps/IrradianceMap_posx.png",
-			"../data/envmaps/IrradianceMap_negx.png",
-			"../data/envmaps/IrradianceMap_posy.png",
-			"../data/envmaps/IrradianceMap_negy.png",
-			"../data/envmaps/IrradianceMap_posz.png",
-			"../data/envmaps/IrradianceMap_negz.png"
+			"../data/envmaps/Studio_Irradiance_posx.png",
+			"../data/envmaps/Studio_Irradiance_negx.png",
+			"../data/envmaps/Studio_Irradiance_posy.png",
+			"../data/envmaps/Studio_Irradiance_negy.png",
+			"../data/envmaps/Studio_Irradiance_posz.png",
+			"../data/envmaps/Studio_Irradiance_negz.png"
 		};
 
 		irradianceMapID = LoadCubemap(pathes);
 	}
+
+	void InitRadianceMap()
+	{
+		const char* pathes[6] = {
+			"../data/envmaps/Studio_Radiance_posx.png",
+			"../data/envmaps/Studio_Radiance_negx.png",
+			"../data/envmaps/Studio_Radiance_posy.png",
+			"../data/envmaps/Studio_Radiance_negy.png",
+			"../data/envmaps/Studio_Radiance_posz.png",
+			"../data/envmaps/Studio_Radiance_negz.png"
+		};
+
+		radianceMapID = LoadCubemap(pathes);
+	}
+
 
 
 	void Initialize()
@@ -134,6 +150,7 @@ struct Application
 
 		InitCubeMap();
 		InitIrradianceMap();
+		InitRadianceMap();
 
 		object = new Mesh();
 
@@ -209,6 +226,10 @@ struct Application
 		glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapID);
 
 		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, radianceMapID);
+
+
+		glActiveTexture(GL_TEXTURE5);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMapID);
 
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -238,7 +259,6 @@ struct Application
 		world = glm::rotate(world, (float)glfwGetTime(), vec3{ 0.f, 1.f, 0.f });
 		vec3 position = {0.f, 0.4f, 1.2f };
 		world = glm::scale(world, vec3(0.03));
-		//vec3 position = {0.f, 20.f, 35.f };
 		view = glm::lookAt(position, vec3{ 0.0f, 0.1f, 0.0f }, vec3{ 0.f, 1.f, 0.f });
 		perspective = glm::perspectiveFov(45.f, (float)width, (float)height, 0.1f, 1000.f);
 		
