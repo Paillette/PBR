@@ -39,6 +39,7 @@ ImColor albedo = ImColor(1.0f, 0.0f, 0.0f);
 float roughness;
 float metallic;
 bool displaySphere = false;
+bool displayIBL = false;
 
 //Objects
 Mesh* sphereMesh;
@@ -289,7 +290,8 @@ struct Application
 
 		if (!displaySphere)
 		{
-			view = glm::lookAt(position, vec3{ 0.0f, 0.3f, 0.0f }, vec3{ 0.f, 1.f, 0.f });
+			position = { 0.f, 0.8f, 1.2f };
+			view = glm::lookAt(position, vec3{ 0.0f, 0.4f, 0.0f }, vec3{ 0.f, 1.f, 0.f });
 			world = glm::scale(world, vec3(0.017));
 		}
 
@@ -320,6 +322,9 @@ struct Application
 
 		int32_t locDisplayShere = glGetUniformLocation(program, "u_displaySphere");
 		glUniform1i(locDisplayShere, displaySphere);
+
+		int32_t locDisplayIBL = glGetUniformLocation(program, "u_displayIBL");
+		glUniform1i(locDisplayIBL, displayIBL);
 
 		for (uint32_t i = 0; i < object->meshCount; i++)
 		{
@@ -480,6 +485,8 @@ void DrawGUI(Application& app)
 		ImGui::SliderFloat("Metallic", &f2, 0.0f, 1.0f, "%.3f");
 		metallic = f2;
 	}
+
+	ImGui::Checkbox("Display IBL", &displayIBL);
 
 	ImGui::End();
 

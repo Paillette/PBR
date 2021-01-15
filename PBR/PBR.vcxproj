@@ -75,8 +75,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <LibraryPath>C:\Program Files\Autodesk\FBX\FBX SDK\2020.0.1\lib\vs2017\x64\debug;$(LibraryPath)</LibraryPath>
-    <IncludePath>C:\Program Files\Autodesk\FBX\FBX SDK\2020.0.1\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Logiciels\Autodesk\fbxSDK\2020.0.1\lib\vs2017\x64\debug;$(LibraryPath)</LibraryPath>
+    <IncludePath>D:\Logiciels\Autodesk\fbxSDK\2020.0.1\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>

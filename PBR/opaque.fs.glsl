@@ -24,6 +24,7 @@ uniform vec3 u_albedo;
 uniform float u_roughness;
 uniform float u_metallic;
 uniform bool u_displaySphere;
+uniform bool u_displayIBL;
 
 layout(binding = 0) uniform sampler2D u_DiffuseTexture;
 layout(binding = 1) uniform sampler2D u_NormalTexture;
@@ -53,7 +54,7 @@ vec3 TBNnormal()
 }
 
 
-//PBR
+//------------------------------------------------------------------>PBR
 //https://www.jordanstevenstechart.com/physically-based-rendering
 //Real Shading in Unreal Engine 4 by Brian Karis, Epic Games
 //Normal Distribution Function
@@ -103,7 +104,7 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 } 
 
-//IBL
+//------------------------------------------------->IBL
 // https://www.unrealengine.com/en-US/blog/physically-based-shading-on-mobile
 vec3 EnvBRDFApprox(vec3 specularColor, float roughness, float ndotv)
 {
@@ -120,15 +121,88 @@ vec3 EnvRemap(vec3 c)
 	return pow(2. * c, vec3(2.2));
 }
 
-// calcul du facteur speculaire, methode Blinn-Phong
+vec2 hammersley(uint i, uint N) 
+{
+	// Radical inverse based on http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+	uint bits = (i << 16u) | (i >> 16u);
+	bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+	bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+	bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+	bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+	float rdi = float(bits) * 2.3283064365386963e-10;
+	return vec2(float(i) /float(N), rdi);
+}
+
+//https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+vec3 ImportanceSampleGGX(vec2 Xi,float Roughness, vec3 N )
+{
+	float a = Roughness * Roughness;
+	float Phi = 2 * PI * Xi.x;
+	float CosTheta = sqrt( (1 - Xi.y) / ( 1 + (a*a - 1) * Xi.y ) );
+	float SinTheta = sqrt( 1 - CosTheta * CosTheta );
+	vec3 H;
+	H.x = SinTheta *cos( Phi );
+	H.y = SinTheta *sin( Phi );
+	H.z = CosTheta;
+	
+	vec3 UpVector = abs(N.z) < 0.999 ? vec3(0,0,1) : vec3(1,0,0);
+	vec3 TangentX = normalize(cross( UpVector, N ) );
+	vec3 TangentY = cross( N, TangentX );
+	return TangentX * H.x + TangentY * H.y + N * H.z;
+
+}
+
+// From the filament docs. Geometric Shadowing function
+// https://google.github.io/filament/Filament.html#toc4.4.2
+float G_Smith(float NoV, float NoL, float roughness)
+{
+	float k = (roughness * roughness) / 2.0;
+	float GGXL = NoL / (NoL * (1.0 - k) + k);
+	float GGXV = NoV / (NoV * (1.0 - k) + k);
+	return GGXL * GGXV;
+}
+
+vec2 IntegratedBRDF(float Roughness, float NdotV, vec3 N)
+{
+	vec3 V;
+	V.x = sqrt( 1.0 - NdotV * NdotV);
+	V.y = 0.;
+	V.z = NdotV;
+
+	float A = 0;
+	float B = 0;
+
+	const uint NumSamples = 20;
+	
+	for(uint i = 0; i < NumSamples; i++ )
+	{
+		vec2 Xi = hammersley( i, NumSamples );
+		vec3 H = ImportanceSampleGGX( Xi, Roughness, N );
+		vec3 L = 2.0 * dot( V, H ) * H - V;
+
+		float NoL = clamp(dot( N, L ), 0., 1. );
+		float NoH = clamp(dot( N, H ), 0., 1. );
+		float VoH = clamp(dot( V, H ), 0., 1. );
+		
+		//https://www.shadertoy.com/view/3lXXDB
+		if( NoL > 0 )
+		{
+			float G = G_Smith( Roughness, NdotV, NoL );
+			float Fc = pow( 1 - VoH, 5.0 );
+			A += (1.0 - Fc) * G;
+			B += Fc = G;
+		}
+	}
+		return 4.0 * vec2(A, B) / float(NumSamples);
+}
+
+// -------------------------------------------------->OLD BLINN PHONG SHADING
 float BlinnPhong(vec3 N, vec3 L, vec3 V, float shininess)
 {
-	// reflexion inspire du modele micro-facette (H approxime la normale de la micro-facette)
 	vec3 H = normalize(L + V);
 	return pow(max(0.0, dot(N, H)), shininess);
 }
 
-// calcul du facteur diffus, suivant la loi du cosinus de Lambert
 float Lambert(vec3 N, vec3 L)
 {
 	return max(0.0, dot(N, L));
@@ -245,16 +319,19 @@ void main(void)
 	vec3 radiance = texture(u_radianceCubeMap, normalize(v_Normal)).rgb;
 	vec3 irradiance = texture(u_irradianceCubeMap, normalize(v_Normal)).rgb;
 
-	//Mix between textures with roughness
-	vec3 env = mix(cubeMap, radiance, clamp(pow(roughness, 2.0) * 4., 0., 1.));
-	//env = mix(env, irradiance, clamp((pow(roughness, 2.0) - 0.25 ) / 0.75, 0., 1.));
+	//Mix between radiances textures with roughness
+	vec3 env = mix(cubeMap, radiance, clamp(pow(roughness, 2.0) * 4.5, 0., 1.));
+	env = mix(env, irradiance, clamp((pow(roughness, 2.0)), 0., 1.));
+	//vec2 envBRDF = IntegratedBRDF( roughness, NdotV, N);
 
-	vec3 envSpecularColor = EnvBRDFApprox(vec3(0.04), pow(roughness, 2.0), NdotV);
+	vec3 envBRDF = EnvBRDFApprox(vec3(0.01), pow(roughness, 2.0), NdotV);
 
-	vec3 diffuse = irradiance * baseColor;
-	vec3 specular = envSpecularColor * env * Fresnel;
-
+	vec3 specular = vec3(0.0);
+	if(u_displayIBL)
+		specular = (env * ( Fresnel * envBRDF.x + envBRDF.y));
+	
 //--------------------------------------->DiffuseColor
+	vec3 diffuse = irradiance * baseColor;
 	vec3 ambient = (kD * diffuse + specular) * AO;
     vec3 color = ambient + reflectance;
 
