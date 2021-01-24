@@ -331,8 +331,16 @@ void main(void)
 		specular = (env * ( Fresnel * envBRDF.x + envBRDF.y));
 	
 //--------------------------------------->DiffuseColor
-	vec3 diffuse = irradiance * baseColor;
-	vec3 ambient = (kD * diffuse + specular) * AO;
+	vec3 diffuse = baseColor;
+	vec3 ambient = vec3(0.03) * diffuse;
+
+	if(u_displayIBL)
+	{
+		diffuse = irradiance * baseColor;
+		ambient = (kD * diffuse + specular);
+	}
+
+	ambient *= AO;
     vec3 color = ambient + reflectance;
 
 	color = color / ( color + vec3(1.0));
