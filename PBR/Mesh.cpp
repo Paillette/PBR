@@ -104,20 +104,21 @@ void ParseMaterial(Material& mat, FbxNode* node)
 					mat.specularTexture = Texture::LoadTexture(filename);
 				}
 			}
+		}
 
-			const FbxProperty property_emissive = fbx_material->FindProperty(FbxSurfaceMaterial::sEmissive);
-			const FbxProperty factor_emissive = fbx_material->FindProperty(FbxSurfaceMaterial::sEmissiveFactor);
-			if (property_emissive.IsValid())
-			{
-				mat.emissiveIntensity = GetProperty(factor_emissive);
+		//Emissive
+		const FbxProperty property_emissive = fbx_material->FindProperty(FbxSurfaceMaterial::sEmissive);
+		const FbxProperty factor_emissive = fbx_material->FindProperty(FbxSurfaceMaterial::sEmissiveFactor);
+		if (property_emissive.IsValid())
+		{
+			mat.emissiveIntensity = GetProperty(factor_emissive);
 
-				const int textureCount = property_emissive.GetSrcObjectCount<FbxFileTexture>();
-				if (textureCount) {
-					const FbxFileTexture* texture = property_emissive.GetSrcObject<FbxFileTexture>(0);
-					if (texture) {
-						const char* filename = texture->GetFileName();
-						mat.emissiveTexure = Texture::LoadTexture(filename);
-					}
+			const int textureCount = property_emissive.GetSrcObjectCount<FbxFileTexture>();
+			if (textureCount) {
+				const FbxFileTexture* texture = property_emissive.GetSrcObject<FbxFileTexture>(0);
+				if (texture) {
+					const char* filename = texture->GetFileName();
+					mat.emissiveTexure = Texture::LoadTexture(filename);
 				}
 			}
 		}

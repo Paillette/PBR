@@ -331,11 +331,9 @@ void main(void)
 	vec3 envBRDF = EnvBRDFApprox(vec3(0.01), pow(roughness, 2.0), NdotV);
 
 	vec3 specular = vec3(0.0);
-	if(u_displayIBL)
-		specular = vec3(0.);
-	//Fake IBL for sphere only
-	if(!u_displayIBL && u_displaySphere)
-		specular = (env * ( Fresnel * envBRDF.x + envBRDF.y));
+	float amountEnv = 0.5;
+	//Fake IBL
+	specular = (env * ( Fresnel * envBRDF.x + envBRDF.y)) * amountEnv;
 	
 //--------------------------------------->DiffuseColor
 	vec3 diffuse = baseColor;
@@ -348,12 +346,12 @@ void main(void)
 		vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, viewDir), 0.0), roughness)).rg;
 		specular = prefilteredColor * (Fresnel * brdf.x + brdf.y);
 	}
-	//Fake IBL for sphere only
-	if(!u_displayIBL && u_displaySphere)
+	else
 	{
+		//Fake IBL
 		diffuse = irradiance * baseColor;
 	}
-	
+
 	ambient = (kD * diffuse + specular);
 	ambient *= AO;
     vec3 color = ambient + reflectance;
