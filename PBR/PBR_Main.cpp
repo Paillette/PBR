@@ -634,7 +634,7 @@ void DrawGUI(Application& app)
 		metallic = f2;
 	}
 
-	ImGui::Checkbox("Display real IBL", &displayIBL);
+	ImGui::Checkbox("Display fake IBL", &displayIBL);
 
 	ImGui::End();
 

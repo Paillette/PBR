@@ -326,36 +326,37 @@ void main(void)
 	//Mix between radiances textures with roughness
 	vec3 env = mix(cubeMap, radiance, clamp(pow(roughness, 2.0) * 4.5, 0., 1.));
 	env = mix(env, irradiance, clamp((pow(roughness, 2.0)), 0., 1.));
-	//vec2 envBRDF = IntegratedBRDF( roughness, NdotV, N);
-
 	vec3 envBRDF = EnvBRDFApprox(vec3(0.01), pow(roughness, 2.0), NdotV);
 
+	float amountIBL = 0.3;
 	vec3 specular = vec3(0.0);
-	float amountEnv = 0.5;
 	//Fake IBL
-	specular = (env * ( Fresnel * envBRDF.x + envBRDF.y)) * amountEnv;
+	if(u_displayIBL)
+		specular = (env * ( Fresnel * envBRDF.x + envBRDF.y)) * amountIBL;
 	
 //--------------------------------------->DiffuseColor
 	vec3 diffuse = baseColor;
 	vec3 ambient = vec3(0.03) * diffuse;
 
+	if(!u_displaySphere)
+		amountIBL = 0.02;
+
+	//Fake IBL
 	if(u_displayIBL)
 	{
+		diffuse = irradiance * baseColor;
+		ambient = (kD * diffuse + specular) * amountIBL;
+
+		/*
 		const float MAX_REFLECTION_LOD = 4.0;
 		vec3 prefilteredColor = vec3(textureLod(u_irradianceCubeMap, R,  roughness * MAX_REFLECTION_LOD)); 
 		vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, viewDir), 0.0), roughness)).rg;
 		specular = prefilteredColor * (Fresnel * brdf.x + brdf.y);
-	}
-	else
-	{
-		//Fake IBL
-		diffuse = irradiance * baseColor;
+		*/
 	}
 
-	ambient = (kD * diffuse + specular);
 	ambient *= AO;
     vec3 color = ambient + reflectance;
-
 	color = color / ( color + vec3(1.0));
 
 	//emissive
