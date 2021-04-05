@@ -5,11 +5,13 @@ in vec3 v_Normal;
 in vec2 v_TexCoords;
 in vec4 v_Tangent;
 
-out vec4 o_FragColor;
+layout(location = 0) out vec4 o_FragColor;
+layout(location = 1) out vec4 o_BrightnessColor;
 
 struct Material {
 	vec3 AmbientColor;
 	vec3 DiffuseColor;
+	float emissiveIntensity;
 	vec3 SpecularColor;
 	float Shininess;
 };
@@ -25,10 +27,12 @@ uniform float u_roughness;
 uniform float u_metallic;
 uniform bool u_displaySphere;
 uniform bool u_displayIBL;
+uniform sampler2D brdfLUT;
 
 layout(binding = 0) uniform sampler2D u_DiffuseTexture;
 layout(binding = 1) uniform sampler2D u_NormalTexture;
 layout(binding = 2) uniform sampler2D u_ORMTexture;
+layout(binding = 6) uniform sampler2D u_EmissiveTexture;
 layout(binding = 3) uniform samplerCube u_cubeMap;
 layout(binding = 4) uniform samplerCube u_radianceCubeMap;
 layout(binding = 5) uniform samplerCube u_irradianceCubeMap;
@@ -328,6 +332,9 @@ void main(void)
 
 	vec3 specular = vec3(0.0);
 	if(u_displayIBL)
+		specular = vec3(0.);
+	//Fake IBL for sphere only
+	if(!u_displayIBL && u_displaySphere)
 		specular = (env * ( Fresnel * envBRDF.x + envBRDF.y));
 	
 //--------------------------------------->DiffuseColor
@@ -336,17 +343,39 @@ void main(void)
 
 	if(u_displayIBL)
 	{
-		diffuse = irradiance * baseColor;
-		ambient = (kD * diffuse + specular);
+		const float MAX_REFLECTION_LOD = 4.0;
+		vec3 prefilteredColor = vec3(textureLod(u_irradianceCubeMap, R,  roughness * MAX_REFLECTION_LOD)); 
+		vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, viewDir), 0.0), roughness)).rg;
+		specular = prefilteredColor * (Fresnel * brdf.x + brdf.y);
 	}
-
+	//Fake IBL for sphere only
+	if(!u_displayIBL && u_displaySphere)
+	{
+		diffuse = irradiance * baseColor;
+	}
+	
+	ambient = (kD * diffuse + specular);
 	ambient *= AO;
     vec3 color = ambient + reflectance;
 
 	color = color / ( color + vec3(1.0));
 
+	//emissive
+	vec3 emissive = texture(u_EmissiveTexture, v_TexCoords).rgb;
+	//Need to be multiply by emissiveIntensity
+	emissive *= 10.;
+	color += emissive;
+
 	//gamma correction 
 	color = pow(color, vec3(1.0 / 2.2));
 
+	//Bloom
+	float brightness = dot(color, vec3(0.21, 0.71, 0.072));
+	if(brightness > 1.0)
+		o_BrightnessColor = vec4(color, 1.0);
+	else
+		o_BrightnessColor = vec4(1., 0., 0., 1.);
+	
+	
 	o_FragColor = vec4(color, 1.0);
 }

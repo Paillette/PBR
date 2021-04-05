@@ -53,14 +53,18 @@ struct Application
 	uint32_t quadVAO;
 
 	GLShader opaqueShader;
-	GLShader copyShader;	
+	GLShader postProcessShader;	
+	GLShader blurShader;
 
 	int32_t width;
 	int32_t height;
 
 	uint32_t matrixUBO;
-
 	uint32_t materialUBO;
+	unsigned int captureFBO;
+	unsigned int colorBuffers[2];
+	unsigned int pingpongFBO[2];
+	unsigned int pingpongColorbuffers[2];
 
 	Framebuffer offscreenBuffer;
 
@@ -68,8 +72,10 @@ struct Application
 	uint32_t cubeMapID;
 	uint32_t irradianceMapID;
 	uint32_t radianceMapID;
+	uint32_t brdfLUTTextureID;
 	GLShader g_skyboxShader;
 	GLuint skyboxVAO, skyboxVBO;
+
 
 	uint32_t LoadCubemap(const char* pathes[6])
 	{
@@ -99,6 +105,34 @@ struct Application
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
 		return cubemapTexture;
+	}
+
+	unsigned int quadVBO;
+	void renderQuad()
+	{
+		if (quadVAO == 0)
+		{
+			float quadVertices[] = {
+				// positions        // texture Coords
+				-1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+				-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+				 1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+				 1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+			};
+			// setup plane VAO
+			glGenVertexArrays(1, &quadVAO);
+			glGenBuffers(1, &quadVBO);
+			glBindVertexArray(quadVAO);
+			glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+			glEnableVertexAttribArray(1);
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+		}
+		glBindVertexArray(quadVAO);
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		glBindVertexArray(0);
 	}
 
 	void GenerateBuffers(Mesh* object)
@@ -176,6 +210,103 @@ struct Application
 		radianceMapID = LoadCubemap(pathes);
 	}
 
+	void InitBloomBuffer()
+	{
+		glGenTextures(2, colorBuffers);
+		for (size_t i = 0; i < 2; i++)
+		{
+			glBindTexture(GL_TEXTURE_2D, colorBuffers[i]);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, colorBuffers[i], 0);
+		}
+
+		unsigned int attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+		glDrawBuffers(2, attachments);
+
+		// ping-pong-framebuffer for blurring
+		glGenFramebuffers(2, pingpongFBO);
+		glGenTextures(2, pingpongColorbuffers);
+		for (unsigned int i = 0; i < 2; i++)
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
+			glBindTexture(GL_TEXTURE_2D, pingpongColorbuffers[i]);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // we clamp to the edge as the blur filter would otherwise sample repeated texture values!
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingpongColorbuffers[i], 0);
+			// also check if framebuffers are complete (no need for depth buffer)
+			if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+				std::cout << "Framebuffer not complete!" << std::endl;
+		}
+	}
+
+	void RenderBloom()
+	{
+		bool horizontal = true, first_iteration = true;
+		unsigned int amount = 10;
+		int32_t program = blurShader.GetProgram();
+		glUseProgram(program);
+		for (unsigned int i = 0; i < amount; i++)
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
+			int32_t horizontalLocation = glGetAttribLocation(program, "horizontal");
+			glUniform1i(horizontalLocation, horizontal);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, first_iteration ? colorBuffers[1] : pingpongColorbuffers[!horizontal]);  // bind texture of other framebuffer (or scene if first iteration)
+			renderQuad();
+			horizontal = !horizontal;
+			if (first_iteration)
+				first_iteration = false;
+		}
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		program = postProcessShader.GetProgram();
+		glUseProgram(program);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, colorBuffers[0]);
+		glActiveTexture(GL_TEXTURE1);
+		//glBindTexture(GL_TEXTURE_2D, colorBuffers[1]);
+		glBindTexture(GL_TEXTURE_2D, pingpongColorbuffers[!horizontal]);
+
+		renderQuad();
+	}
+
+	void GenerateBRDFLutTexture()
+	{
+		glGenTextures(1, &brdfLUTTextureID);
+
+		// pre-allocate enough memory for the LUT texture.
+		glBindTexture(GL_TEXTURE_2D, brdfLUTTextureID);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, 512, 512, 0, GL_RG, GL_FLOAT, 0);
+		// be sure to set wrapping mode to GL_CLAMP_TO_EDGE
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		// then re-configure capture framebuffer object and render screen-space quad with BRDF shader.
+		glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, brdfLUTTextureID, 0);
+
+		glViewport(0, 0, 512, 512);
+		int32_t program = opaqueShader.GetProgram();
+		glUseProgram(program);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		renderQuad();
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	}
+
 	void Initialize()
 	{
 		GLenum error = glewInit();
@@ -194,13 +325,17 @@ struct Application
 		opaqueShader.LoadVertexShader("opaque.vs.glsl");
 		opaqueShader.LoadFragmentShader("opaque.fs.glsl");
 		opaqueShader.Create();
-		copyShader.LoadVertexShader("copy.vs.glsl");
-		copyShader.LoadFragmentShader("copy.fs.glsl");
-		copyShader.Create();
+		postProcessShader.LoadVertexShader("postProcess.vs.glsl");
+		postProcessShader.LoadFragmentShader("postProcess.fs.glsl");
+		postProcessShader.Create();
+		blurShader.LoadVertexShader("blur.vs.glsl");
+		blurShader.LoadFragmentShader("blur.fs.glsl");
+		blurShader.Create();
 
 		InitCubeMap();
 		InitIrradianceMap();
 		InitRadianceMap();
+		InitBloomBuffer();
 
 		//Load meshes
 		otherMesh = new Mesh();
@@ -214,6 +349,10 @@ struct Application
 		glBufferData(GL_UNIFORM_BUFFER, 3 * sizeof(mat4), nullptr, GL_STREAM_DRAW);
 		glBindBufferBase(GL_UNIFORM_BUFFER, 0, matrixUBO);
 
+		unsigned int captureFBO;
+		glGenFramebuffers(1, &captureFBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+
 		//bind UBO material
 		glGenBuffers(1, &materialUBO);
 		glBindBuffer(GL_UNIFORM_BUFFER, materialUBO);
@@ -223,6 +362,7 @@ struct Application
 		int32_t program = opaqueShader.GetProgram();
 		glUseProgram(program);
 		
+		GenerateBRDFLutTexture();
 		GenerateBuffers(otherMesh);
 		GenerateBuffers(sphereMesh);
 
@@ -236,7 +376,7 @@ struct Application
 			glBindVertexArray(quadVAO);
 			uint32_t vbo = CreateBufferObject(BufferType::VBO, sizeof(quad), quad);
 
-			program = copyShader.GetProgram();
+			program = postProcessShader.GetProgram();
 			glUseProgram(program);
 			int32_t positionLocation = glGetAttribLocation(program, "a_Position");
 			glVertexAttribPointer(positionLocation, 2, GL_FLOAT, false, sizeof(vec2), 0);
@@ -267,6 +407,7 @@ struct Application
 	void RenderOffscreen()
 	{
 		//offscreenBuffer.EnableRender();
+
 		glBindFramebuffer(GL_FRAMEBUFFER, offscreenBuffer.FBO);
 		glViewport(0, 0, offscreenBuffer.width, offscreenBuffer.height);
 
@@ -336,7 +477,7 @@ struct Application
 			glBindBuffer(GL_UNIFORM_BUFFER, materialUBO);
 			vec4* materialMat = (vec4*)glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
 			materialMat[0] = vec4(mat.ambientColor, 0.f);
-			materialMat[1] = vec4(mat.diffuseColor, 0.f);
+			materialMat[1] = vec4(mat.diffuseColor, mat.emissiveIntensity);
 			materialMat[2] = vec4(mat.specularColor, mat.shininess);
 			glUnmapBuffer(GL_UNIFORM_BUFFER);
 
@@ -348,10 +489,16 @@ struct Application
 			//Texture spec
 			glActiveTexture(GL_TEXTURE2);
 			glBindTexture(GL_TEXTURE_2D, mat.specularTexture);
+			//Emissive texture
+			glActiveTexture(GL_TEXTURE6);
+			glBindTexture(GL_TEXTURE_2D, mat.emissiveTexure);
 			
 			glBindVertexArray(mesh.VAO);
 			glDrawElements(GL_TRIANGLES, object->meshes[i].indicesCount, GL_UNSIGNED_INT, 0);
 		}
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		RenderBloom();
 	}
 
 	void Render()
@@ -363,7 +510,7 @@ struct Application
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, width, height);
 
-		uint32_t program = copyShader.GetProgram();
+		uint32_t program = postProcessShader.GetProgram();
 		glUseProgram(program);
 
 		int32_t samplerLocation = glGetUniformLocation(program, "u_Texture");
@@ -408,8 +555,9 @@ struct Application
 		Texture::PurgeTextures();
 		glDeleteTextures(1, &cubeMapID);
 
-		copyShader.Destroy();
+		postProcessShader.Destroy();
 		opaqueShader.Destroy();
+		blurShader.Destroy();
 	}
 };
 
@@ -486,7 +634,7 @@ void DrawGUI(Application& app)
 		metallic = f2;
 	}
 
-	ImGui::Checkbox("Display IBL", &displayIBL);
+	ImGui::Checkbox("Display real IBL", &displayIBL);
 
 	ImGui::End();
 

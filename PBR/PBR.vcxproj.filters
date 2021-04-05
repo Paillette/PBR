@@ -79,10 +79,16 @@
     <None Include="opaque.vs.glsl">
       <Filter>shaders</Filter>
     </None>
-    <None Include="copy.fs.glsl">
+    <None Include="postProcess.fs.glsl">
       <Filter>shaders</Filter>
     </None>
-    <None Include="copy.vs.glsl">
+    <None Include="postProcess.vs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="blur.fs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="blur.vs.glsl">
       <Filter>shaders</Filter>
     </None>
   </ItemGroup>

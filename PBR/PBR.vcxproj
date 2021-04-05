@@ -183,8 +183,10 @@
     <ClCompile Include="Texture.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="copy.fs.glsl" />
-    <None Include="copy.vs.glsl" />
+    <None Include="blur.fs.glsl" />
+    <None Include="blur.vs.glsl" />
+    <None Include="postProcess.fs.glsl" />
+    <None Include="postProcess.vs.glsl" />
     <None Include="opaque.fs.glsl" />
     <None Include="opaque.vs.glsl" />
   </ItemGroup>

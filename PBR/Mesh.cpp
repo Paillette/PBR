@@ -104,6 +104,22 @@ void ParseMaterial(Material& mat, FbxNode* node)
 					mat.specularTexture = Texture::LoadTexture(filename);
 				}
 			}
+
+			const FbxProperty property_emissive = fbx_material->FindProperty(FbxSurfaceMaterial::sEmissive);
+			const FbxProperty factor_emissive = fbx_material->FindProperty(FbxSurfaceMaterial::sEmissiveFactor);
+			if (property_emissive.IsValid())
+			{
+				mat.emissiveIntensity = GetProperty(factor_emissive);
+
+				const int textureCount = property_emissive.GetSrcObjectCount<FbxFileTexture>();
+				if (textureCount) {
+					const FbxFileTexture* texture = property_emissive.GetSrcObject<FbxFileTexture>(0);
+					if (texture) {
+						const char* filename = texture->GetFileName();
+						mat.emissiveTexure = Texture::LoadTexture(filename);
+					}
+				}
+			}
 		}
 
 
@@ -303,7 +319,6 @@ bool Mesh::ParseFBX(Mesh* obj, const char* filepath)
 		//FbxGeometryConverter geometryConverter(g_fbxManager);
 		//geometryConverter.Triangulate(scene, true);
 
-		// On compare le repère de la scene avec le repere souhaite
 		FbxAxisSystem SceneAxisSystem = g_scene->GetGlobalSettings().GetAxisSystem();
 		FbxAxisSystem OurAxisSystem(FbxAxisSystem::eYAxis, FbxAxisSystem::eParityOdd, FbxAxisSystem::eRightHanded);
 		if (SceneAxisSystem != OurAxisSystem) {
@@ -311,7 +326,7 @@ bool Mesh::ParseFBX(Mesh* obj, const char* filepath)
 		}
 
 		FbxSystemUnit SceneSystemUnit = g_scene->GetGlobalSettings().GetSystemUnit();
-		// L'unite standard du Fbx est le centimetre, que l'on peut tester ainsi
+
 		if (SceneSystemUnit != FbxSystemUnit::cm) {
 			printf("[warning] FbxSystemUnit vaut %f cm (= 1 %s) !\n", SceneSystemUnit.GetScaleFactor(), SceneSystemUnit.GetScaleFactorAsString().Buffer());
 			FbxSystemUnit::cm.ConvertScene(g_scene);
