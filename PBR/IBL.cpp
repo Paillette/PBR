@@ -91,7 +91,7 @@ void GenerateIrradiance(uint32_t& irradianceMap, uint32_t& fbo, uint32_t& rbo)
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 32, 32);
 }
 
-void SolveDiffuseIntegrale(GLShader irradianceShader, uint32_t& cubeMap, uint32_t& irradianceMap)
+void SolveDiffuseIntegrale(GLShader irradianceShader, uint32_t& cubeMap, uint32_t& irradianceMap, uint32_t& fbo)
 {
 	int32_t program = irradianceShader.GetProgram();
 	glUseProgram(program);
@@ -99,16 +99,19 @@ void SolveDiffuseIntegrale(GLShader irradianceShader, uint32_t& cubeMap, uint32_
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
 
+	uint32_t locProjection = glGetUniformLocation(program, "projection");
+	glUniformMatrix4fv(locProjection, 1, false, glm::value_ptr(captureProjection[0]));
+
 	glViewport(0, 0, 32, 32); // don't forget to configure the viewport to the capture dimensions.
-	glBindFramebuffer(GL_FRAMEBUFFER, cubeMap);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
 	for (unsigned int i = 0; i < 6; ++i)
 	{
 		uint32_t locView = glGetUniformLocation(program, "view");
-		glUniformMatrix4fv(locView, 1, false, &captureViews[i][0][0]);
+		glUniformMatrix4fv(locView, 1, false, glm::value_ptr(captureViews[0]));
 
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, irradianceMap, 0);
+		GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, irradianceMap, 0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	}
 

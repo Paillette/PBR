@@ -298,9 +298,10 @@ struct Application
 		InitCubeMap();
 		GenerateMipmaps(cubeMapID);
 		GenerateIrradiance(irradianceMapID, captureFBO, captureRBO);
-		SolveDiffuseIntegrale(irradianceShader, cubeMapID, irradianceMapID);
+		SolveDiffuseIntegrale(irradianceShader, cubeMapID, irradianceMapID, captureFBO);
+
 		CreatePrefilteredMap(prefilteredMap);
-		//GeneratePrefilteredMap(prefilteredMap, cubeMapID, prefilterShader, captureFBO, captureRBO); TODO : shader
+		GeneratePrefilteredMap(prefilteredMap, cubeMapID, prefilterShader, captureFBO, captureRBO);
 		//GenerateBRDFLutTexture(brdfLUTTextureID, brdfShader, captureFBO, captureRBO); TODO : shader
 
 		InitBloomBuffer();
@@ -348,13 +349,13 @@ struct Application
 
 		glDisable(GL_FRAMEBUFFER_SRGB);
 
+		glUseProgram(pbrShader.GetProgram());
 		//Cubemap
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapID);
 
 		glActiveTexture(GL_TEXTURE4);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, radianceMapID);
-
 
 		glActiveTexture(GL_TEXTURE5);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMapID);
@@ -456,6 +457,9 @@ struct Application
 			glBindVertexArray(mesh.VAO);
 			glDrawElements(GL_TRIANGLES, object->meshes[i].indicesCount, GL_UNSIGNED_INT, 0);
 		}
+
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMapID);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		RenderBloom();
