@@ -17,6 +17,8 @@ const float gamma = 2.2;
 	vec3 color = vec3(1.0) - exp(-hdrColor * 2.0);
 	vec3 result = pow(color, vec3(1.0 / 2.2));
 
-	gl_FragColor = vec4(hdrColor, 1.0);
+	gl_FragColor = texture2D(u_Texture, v_UV);
+
+	//gl_FragColor = vec4(hdrColor, 1.0);
 
 }

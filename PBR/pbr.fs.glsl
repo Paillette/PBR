@@ -36,6 +36,8 @@ layout(binding = 3) uniform samplerCube u_cubeMap;
 layout(binding = 4) uniform samplerCube u_radianceCubeMap;
 layout(binding = 5) uniform samplerCube u_irradianceCubeMap;
 layout(binding = 6) uniform sampler2D u_EmissiveTexture;
+layout(binding = 7) uniform samplerCube u_prefilteredmap;
+layout(binding = 8) uniform sampler2D u_brdfLUT;
 
 
 float PI = 3.1416;
@@ -333,7 +335,13 @@ void main(void)
 	//Fake IBL
 	if(u_displayIBL)
 		specular = (env * ( Fresnel * envBRDF.x + envBRDF.y)) * amountIBL;
-	
+//--------------------------------------->IBL
+	const float MAX_REFLECTION_LOD = 4.0;
+    vec3 prefilteredColor = textureLod(u_prefilteredmap, R,  roughness * MAX_REFLECTION_LOD).rgb;    
+    vec2 brdf  = texture(u_brdfLUT, vec2(max(dot(N, viewDir), 0.0), roughness)).rg;
+    specular = prefilteredColor * (Fresnel * brdf.x + brdf.y);
+
+
 //--------------------------------------->DiffuseColor
 	vec3 diffuse = baseColor;
 	vec3 ambient = vec3(0.03) * diffuse;
@@ -342,22 +350,19 @@ void main(void)
 		amountIBL = 0.02;
 
 	//Fake IBL
-	if(u_displayIBL)
+	/*if(u_displayIBL)
 	{
 		diffuse = irradiance * baseColor;
 		ambient = (kD * diffuse + specular) * amountIBL;
 
-		/*
-		const float MAX_REFLECTION_LOD = 4.0;
-		vec3 prefilteredColor = vec3(textureLod(u_irradianceCubeMap, R,  roughness * MAX_REFLECTION_LOD)); 
-		vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, viewDir), 0.0), roughness)).rg;
-		specular = prefilteredColor * (Fresnel * brdf.x + brdf.y);
-		*/
-	}
+	}*/
 
 	ambient *= AO;
     vec3 color = ambient + reflectance;
 	color = color / ( color + vec3(1.0));
+
+	ambient = (kD * diffuse + specular) * AO;
+	color = ambient + reflectance;
 
 	//emissive
 	vec3 emissive = texture(u_EmissiveTexture, v_TexCoords).rgb;

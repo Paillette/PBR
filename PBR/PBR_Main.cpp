@@ -72,6 +72,9 @@ struct Application
 	unsigned int pingpongFBO[2];
 	unsigned int pingpongColorbuffers[2];
 
+	unsigned int cubeVAO = 0;
+	unsigned int cubeVBO = 0;
+
 	Framebuffer offscreenBuffer;
 
 	//cubemap 
@@ -298,13 +301,13 @@ struct Application
 		InitCubeMap();
 		GenerateMipmaps(cubeMapID);
 		GenerateIrradiance(irradianceMapID, captureFBO, captureRBO);
-		SolveDiffuseIntegrale(irradianceShader, cubeMapID, irradianceMapID, captureFBO);
+		SolveDiffuseIntegrale(irradianceShader, cubeMapID, irradianceMapID, captureFBO, cubeVAO, cubeVBO);
 
 		CreatePrefilteredMap(prefilteredMap);
 		GeneratePrefilteredMap(prefilteredMap, cubeMapID, prefilterShader, captureFBO, captureRBO);
-		//GenerateBRDFLutTexture(brdfLUTTextureID, brdfShader, captureFBO, captureRBO); TODO : shader
+		GenerateBRDFLutTexture(brdfLUTTextureID, brdfShader, captureFBO, captureRBO);
 
-		InitBloomBuffer();
+		//InitBloomBuffer();
 
 		//Load meshes
 		otherMesh = new Mesh();
@@ -462,7 +465,7 @@ struct Application
 		glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMapID);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		RenderBloom();
+		//RenderBloom();
 	}
 
 	void Render()
