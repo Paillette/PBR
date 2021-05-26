@@ -32,10 +32,10 @@ uniform sampler2D brdfLUT;
 layout(binding = 0) uniform sampler2D u_DiffuseTexture;
 layout(binding = 1) uniform sampler2D u_NormalTexture;
 layout(binding = 2) uniform sampler2D u_ORMTexture;
-layout(binding = 6) uniform sampler2D u_EmissiveTexture;
 layout(binding = 3) uniform samplerCube u_cubeMap;
 layout(binding = 4) uniform samplerCube u_radianceCubeMap;
 layout(binding = 5) uniform samplerCube u_irradianceCubeMap;
+layout(binding = 6) uniform sampler2D u_EmissiveTexture;
 
 
 float PI = 3.1416;

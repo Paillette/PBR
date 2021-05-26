@@ -153,11 +153,9 @@ struct Application
 		postProcessShader.LoadFragmentShader("postProcess.fs.glsl");
 		postProcessShader.Create();
 
-		irradianceShader.LoadVertexShader("irradiance.vs.glsl");
 		irradianceShader.LoadFragmentShader("irradiance.fs.glsl");
 		irradianceShader.Create();
 
-		prefilterShader.LoadVertexShader("prefilter.vs.glsl");
 		prefilterShader.LoadFragmentShader("prefilter.fs.glsl");
 		prefilterShader.Create();
 
@@ -298,7 +296,7 @@ struct Application
 		InitCubeMap();
 		GenerateMipmaps(cubeMapID);
 		GenerateIrradiance(irradianceMapID, captureFBO, captureRBO);
-		//SolveDiffuseIntegrale(irradianceShader, cubeMapID, irradianceMapID); TODO : shader
+		SolveDiffuseIntegrale(irradianceShader, cubeMapID, irradianceMapID);
 		CreatePrefilteredMap(prefilteredMap);
 		//GeneratePrefilteredMap(prefilteredMap, cubeMapID, prefilterShader, captureFBO, captureRBO); TODO : shader
 		//GenerateBRDFLutTexture(brdfLUTTextureID, brdfShader, captureFBO, captureRBO); TODO : shader

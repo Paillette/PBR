@@ -190,13 +190,11 @@
     <None Include="brdf.fs.glsl" />
     <None Include="brdf.vs.glsl" />
     <None Include="irradiance.fs.glsl" />
-    <None Include="irradiance.vs.glsl" />
     <None Include="postProcess.fs.glsl" />
     <None Include="postProcess.vs.glsl" />
     <None Include="pbr.fs.glsl" />
     <None Include="pbr.vs.glsl" />
     <None Include="prefilter.fs.glsl" />
-    <None Include="prefilter.vs.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
