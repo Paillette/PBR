@@ -79,10 +79,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="opaque.fs.glsl">
+    <None Include="pbr.fs.glsl">
       <Filter>shaders</Filter>
     </None>
-    <None Include="opaque.vs.glsl">
+    <None Include="pbr.vs.glsl">
       <Filter>shaders</Filter>
     </None>
     <None Include="postProcess.fs.glsl">
@@ -95,6 +95,24 @@
       <Filter>shaders</Filter>
     </None>
     <None Include="blur.vs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="brdf.fs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="brdf.vs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="irradiance.fs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="irradiance.vs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="prefilter.fs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="prefilter.vs.glsl">
       <Filter>shaders</Filter>
     </None>
   </ItemGroup>

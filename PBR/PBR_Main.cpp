@@ -53,9 +53,13 @@ struct Application
 
 	uint32_t quadVAO;
 
-	GLShader opaqueShader;
-	GLShader postProcessShader;	
+	GLShader pbrShader;
+	GLShader postProcessShader;
+	GLShader irradianceShader;
+	GLShader prefilterShader;
+	GLShader brdfShader;
 	GLShader blurShader;
+	GLShader g_skyboxShader;
 
 	int32_t width;
 	int32_t height;
@@ -76,7 +80,6 @@ struct Application
 	uint32_t radianceMapID;
 	uint32_t prefilteredMap;
 	uint32_t brdfLUTTextureID;
-	GLShader g_skyboxShader;
 	GLuint skyboxVAO, skyboxVBO;
 
 	unsigned int quadVBO;
@@ -138,6 +141,33 @@ struct Application
 			DeleteBufferObject(mesh.VBO);
 			DeleteBufferObject(mesh.IBO);
 		}
+	}
+
+	void InitShaders() 
+	{
+		pbrShader.LoadVertexShader("pbr.vs.glsl");
+		pbrShader.LoadFragmentShader("pbr.fs.glsl");
+		pbrShader.Create();
+
+		postProcessShader.LoadVertexShader("postProcess.vs.glsl");
+		postProcessShader.LoadFragmentShader("postProcess.fs.glsl");
+		postProcessShader.Create();
+
+		irradianceShader.LoadVertexShader("irradiance.vs.glsl");
+		irradianceShader.LoadFragmentShader("irradiance.fs.glsl");
+		irradianceShader.Create();
+
+		prefilterShader.LoadVertexShader("prefilter.vs.glsl");
+		prefilterShader.LoadFragmentShader("prefilter.fs.glsl");
+		prefilterShader.Create();
+
+		brdfShader.LoadVertexShader("brdf.vs.glsl");
+		brdfShader.LoadFragmentShader("brdf.fs.glsl");
+		brdfShader.Create();
+
+		blurShader.LoadVertexShader("blur.vs.glsl");
+		blurShader.LoadFragmentShader("blur.fs.glsl");
+		blurShader.Create();
 	}
 
 	void InitFrameBuffer() {
@@ -262,15 +292,7 @@ struct Application
 
 		Texture::SetupManager();
 
-		opaqueShader.LoadVertexShader("opaque.vs.glsl");
-		opaqueShader.LoadFragmentShader("opaque.fs.glsl");
-		opaqueShader.Create();
-		postProcessShader.LoadVertexShader("postProcess.vs.glsl");
-		postProcessShader.LoadFragmentShader("postProcess.fs.glsl");
-		postProcessShader.Create();
-		blurShader.LoadVertexShader("blur.vs.glsl");
-		blurShader.LoadFragmentShader("blur.fs.glsl");
-		blurShader.Create();
+		InitShaders();
 
 		InitFrameBuffer();
 		InitCubeMap();
@@ -357,7 +379,7 @@ struct Application
 		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_CULL_FACE);
 
-		uint32_t program = opaqueShader.GetProgram();
+		uint32_t program = pbrShader.GetProgram();
 		glUseProgram(program);
 
 		mat4 world(1.f), view, perspective;
@@ -494,7 +516,7 @@ struct Application
 		glDeleteTextures(1, &cubeMapID);
 
 		postProcessShader.Destroy();
-		opaqueShader.Destroy();
+		pbrShader.Destroy();
 		blurShader.Destroy();
 	}
 };
