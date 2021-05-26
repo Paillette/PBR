@@ -104,7 +104,7 @@ void SolveDiffuseIntegrale(GLShader irradianceShader, uint32_t& cubeMap, uint32_
 
 	for (unsigned int i = 0; i < 6; ++i)
 	{
-		uint32_t locView = glGetAttribLocation(irradianceShader.GetProgram(), "view");
+		uint32_t locView = glGetUniformLocation(program, "view");
 		glUniformMatrix4fv(locView, 1, false, &captureViews[i][0][0]);
 
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
@@ -137,9 +137,9 @@ void GeneratePrefilteredMap(uint32_t& prefilteredMap, uint32_t& cubeMap, GLShade
 	uint32_t program = prefilterShader.GetProgram();
 	glUseProgram(program);
 
-	uint32_t cubeMapLocation = glGetAttribLocation(program, "environmentMap");
+	uint32_t cubeMapLocation = glGetUniformLocation(program, "environmentMap");
 	glUniform1i(cubeMapLocation, 0);
-	uint32_t projectionLocation = glGetAttribLocation(program, "projection");
+	uint32_t projectionLocation = glGetUniformLocation(program, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, false, &captureProjection[0][0]);
 
 	glActiveTexture(GL_TEXTURE0);
@@ -157,12 +157,12 @@ void GeneratePrefilteredMap(uint32_t& prefilteredMap, uint32_t& cubeMap, GLShade
 		glViewport(0, 0, mipWidth, mipHeight);
 
 		float roughness = (float)mip / (float)(maxMipLevels - 1);
-		uint32_t roughnessLocation = glGetAttribLocation(program, "roughness");
+		uint32_t roughnessLocation = glGetUniformLocation(program, "roughness");
 		glUniform1f(roughnessLocation, roughness);
 
 		for (unsigned int i = 0; i < 6; ++i)
 		{
-			uint32_t locView = glGetAttribLocation(program, "view");
+			uint32_t locView = glGetUniformLocation(program, "view");
 			glUniformMatrix4fv(locView, 1, false, &captureViews[i][0][0]);
 
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, prefilteredMap, mip);

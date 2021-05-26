@@ -153,9 +153,11 @@ struct Application
 		postProcessShader.LoadFragmentShader("postProcess.fs.glsl");
 		postProcessShader.Create();
 
+		irradianceShader.LoadVertexShader("cubemap.vs.glsl");
 		irradianceShader.LoadFragmentShader("irradiance.fs.glsl");
 		irradianceShader.Create();
 
+		prefilterShader.LoadVertexShader("cubemap.vs.glsl");
 		prefilterShader.LoadFragmentShader("prefilter.fs.glsl");
 		prefilterShader.Create();
 
