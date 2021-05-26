@@ -1,3 +1,4 @@
+#pragma once
 #include "OpenGLcore.h"
 #include <GLFW/glfw3.h>
 
@@ -27,10 +28,10 @@
 #include "imgui_demo.cpp"
 
 #include "../common/GLShader.h"
-#include "mat4.h"
 #include "Texture.h"
 #include "Mesh.h"
 #include "Framebuffer.h"
+#include "IBL.h"
 
 const char* glsl_version = "#version 420";
 
@@ -62,6 +63,7 @@ struct Application
 	uint32_t matrixUBO;
 	uint32_t materialUBO;
 	unsigned int captureFBO;
+	unsigned int captureRBO;
 	unsigned int colorBuffers[2];
 	unsigned int pingpongFBO[2];
 	unsigned int pingpongColorbuffers[2];
@@ -72,40 +74,10 @@ struct Application
 	uint32_t cubeMapID;
 	uint32_t irradianceMapID;
 	uint32_t radianceMapID;
+	uint32_t prefilteredMap;
 	uint32_t brdfLUTTextureID;
 	GLShader g_skyboxShader;
 	GLuint skyboxVAO, skyboxVBO;
-
-
-	uint32_t LoadCubemap(const char* pathes[6])
-	{
-		unsigned int cubemapTexture;
-		glGenTextures(1, &cubemapTexture);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
-
-		int width, height, c;
-		for (int i = 0; i < 6; i++)
-		{
-			uint8_t* data = stbi_load(pathes[i], &width, &height, &c, STBI_rgb_alpha);
-			if (data)
-			{
-				std::cout << "Cubemap texture load at path: " << pathes[i] << std::endl;
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-			}
-			else
-			{
-				std::cout << "Cubemap texture failed to load at path: " << GL_TEXTURE_CUBE_MAP_POSITIVE_X + i << std::endl;
-			}
-			stbi_image_free(data);
-		}
-
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-
-		return cubemapTexture;
-	}
 
 	unsigned int quadVBO;
 	void renderQuad()
@@ -168,6 +140,16 @@ struct Application
 		}
 	}
 
+	void InitFrameBuffer() {
+		glGenFramebuffers(1, &captureFBO);
+		glGenRenderbuffers(1, &captureRBO);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBO);
+	}
+
 	void InitCubeMap()
 	{
 		const char* pathes[6] = {
@@ -180,20 +162,6 @@ struct Application
 		};
 
 		cubeMapID = LoadCubemap(pathes);
-	}
-
-	void InitIrradianceMap()
-	{
-		const char* pathes[6] = {
-			"../data/envmaps/Studio_Irradiance_posx.png",
-			"../data/envmaps/Studio_Irradiance_negx.png",
-			"../data/envmaps/Studio_Irradiance_posy.png",
-			"../data/envmaps/Studio_Irradiance_negy.png",
-			"../data/envmaps/Studio_Irradiance_posz.png",
-			"../data/envmaps/Studio_Irradiance_negz.png"
-		};
-
-		irradianceMapID = LoadCubemap(pathes);
 	}
 
 	void InitRadianceMap()
@@ -279,34 +247,6 @@ struct Application
 		renderQuad();
 	}
 
-	void GenerateBRDFLutTexture()
-	{
-		glGenTextures(1, &brdfLUTTextureID);
-
-		// pre-allocate enough memory for the LUT texture.
-		glBindTexture(GL_TEXTURE_2D, brdfLUTTextureID);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, 512, 512, 0, GL_RG, GL_FLOAT, 0);
-		// be sure to set wrapping mode to GL_CLAMP_TO_EDGE
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-		// then re-configure capture framebuffer object and render screen-space quad with BRDF shader.
-		glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, brdfLUTTextureID, 0);
-
-		glViewport(0, 0, 512, 512);
-		int32_t program = opaqueShader.GetProgram();
-		glUseProgram(program);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		renderQuad();
-
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	}
-
 	void Initialize()
 	{
 		GLenum error = glewInit();
@@ -332,9 +272,15 @@ struct Application
 		blurShader.LoadFragmentShader("blur.fs.glsl");
 		blurShader.Create();
 
+		InitFrameBuffer();
 		InitCubeMap();
-		InitIrradianceMap();
-		InitRadianceMap();
+		GenerateMipmaps(cubeMapID);
+		GenerateIrradiance(irradianceMapID, captureFBO, captureRBO);
+		//SolveDiffuseIntegrale(irradianceShader, cubeMapID, irradianceMapID); TODO : shader
+		CreatePrefilteredMap(prefilteredMap);
+		//GeneratePrefilteredMap(prefilteredMap, cubeMapID, prefilterShader, captureFBO, captureRBO); TODO : shader
+		//GenerateBRDFLutTexture(brdfLUTTextureID, brdfShader, captureFBO, captureRBO); TODO : shader
+
 		InitBloomBuffer();
 
 		//Load meshes
@@ -349,20 +295,12 @@ struct Application
 		glBufferData(GL_UNIFORM_BUFFER, 3 * sizeof(mat4), nullptr, GL_STREAM_DRAW);
 		glBindBufferBase(GL_UNIFORM_BUFFER, 0, matrixUBO);
 
-		unsigned int captureFBO;
-		glGenFramebuffers(1, &captureFBO);
-		glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-
 		//bind UBO material
 		glGenBuffers(1, &materialUBO);
 		glBindBuffer(GL_UNIFORM_BUFFER, materialUBO);
 		glBufferData(GL_UNIFORM_BUFFER, 3 * sizeof(vec4), nullptr, GL_STREAM_DRAW);
 		glBindBufferBase(GL_UNIFORM_BUFFER, 1, materialUBO);
-
-		int32_t program = opaqueShader.GetProgram();
-		glUseProgram(program);
 		
-		GenerateBRDFLutTexture();
 		GenerateBuffers(otherMesh);
 		GenerateBuffers(sphereMesh);
 
@@ -376,7 +314,7 @@ struct Application
 			glBindVertexArray(quadVAO);
 			uint32_t vbo = CreateBufferObject(BufferType::VBO, sizeof(quad), quad);
 
-			program = postProcessShader.GetProgram();
+			uint32_t program = postProcessShader.GetProgram();
 			glUseProgram(program);
 			int32_t positionLocation = glGetAttribLocation(program, "a_Position");
 			glVertexAttribPointer(positionLocation, 2, GL_FLOAT, false, sizeof(vec2), 0);

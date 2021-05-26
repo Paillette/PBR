@@ -75,8 +75,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <LibraryPath>D:\Logiciels\Autodesk\fbxSDK\2020.0.1\lib\vs2017\x64\debug;$(LibraryPath)</LibraryPath>
-    <IncludePath>D:\Logiciels\Autodesk\fbxSDK\2020.0.1\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\Autodesk\FBX\FBX SDK\2020.0.1\lib\vs2017\x64\debug;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Program Files\Autodesk\FBX\FBX SDK\2020.0.1\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -159,6 +159,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Framebuffer.h" />
+    <ClInclude Include="IBL.h" />
     <ClInclude Include="mat4.h" />
     <ClInclude Include="Material.h" />
     <ClInclude Include="Mesh.h" />
@@ -171,6 +172,7 @@
   <ItemGroup>
     <ClCompile Include="..\common\GLShader.cpp" />
     <ClCompile Include="Framebuffer.cpp" />
+    <ClCompile Include="IBL.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="PBR_Main.cpp" />
     <ClCompile Include="OpenGLcore.cpp" />
