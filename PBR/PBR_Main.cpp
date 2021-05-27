@@ -51,7 +51,7 @@ struct Application
 {
 	Mesh* object;
 
-	uint32_t quadVAO;
+	uint32_t quadVAO = 0;
 
 	GLShader pbrShader;
 	GLShader postProcessShader;
@@ -299,13 +299,15 @@ struct Application
 
 		InitFrameBuffer();
 		InitCubeMap();
-		GenerateMipmaps(cubeMapID);
+		GenerateMipmaps(cubeMapID, cubeVAO, cubeVBO);
 		GenerateIrradiance(irradianceMapID, captureFBO, captureRBO);
 		SolveDiffuseIntegrale(irradianceShader, cubeMapID, irradianceMapID, captureFBO, cubeVAO, cubeVBO);
 
 		CreatePrefilteredMap(prefilteredMap);
-		GeneratePrefilteredMap(prefilteredMap, cubeMapID, prefilterShader, captureFBO, captureRBO);
-		GenerateBRDFLutTexture(brdfLUTTextureID, brdfShader, captureFBO, captureRBO);
+		GeneratePrefilteredMap(prefilteredMap, cubeMapID, prefilterShader, captureFBO, captureRBO, cubeVAO, cubeVBO);
+		GenerateBRDFLutTexture(brdfLUTTextureID, brdfShader, captureFBO, captureRBO); 
+		renderQuad();
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		//InitBloomBuffer();
 
@@ -362,6 +364,12 @@ struct Application
 
 		glActiveTexture(GL_TEXTURE5);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMapID);
+
+		glActiveTexture(GL_TEXTURE7);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, prefilteredMap);
+
+		glActiveTexture(GL_TEXTURE8);
+		glBindTexture(GL_TEXTURE_2D, brdfLUTTextureID);
 
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);

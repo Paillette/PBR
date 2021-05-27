@@ -51,7 +51,7 @@ uint32_t LoadCubemap(const char* pathes[6])
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
 	return cubemapTexture;
@@ -78,7 +78,7 @@ uint32_t CreateCubemap()
 }
 
 //Irradiance
-void GenerateMipmaps(uint32_t& map)
+void GenerateMipmaps(uint32_t& map, unsigned int cubeVAO, unsigned int cubeVBO)
 {
 	glBindTexture(GL_TEXTURE_CUBE_MAP, map);
 	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
@@ -138,15 +138,13 @@ void CreatePrefilteredMap(uint32_t& prefilteredMap)
 	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 }
 
-void GeneratePrefilteredMap(uint32_t& prefilteredMap, uint32_t& cubeMap, GLShader prefilterShader, uint32_t& fbo, uint32_t& rbo)
+void GeneratePrefilteredMap(uint32_t& prefilteredMap, uint32_t& cubeMap, GLShader prefilterShader, uint32_t& fbo, uint32_t& rbo, unsigned int cubeVAO, unsigned int cubeVBO)
 {
 	uint32_t program = prefilterShader.GetProgram();
 	glUseProgram(program);
 
-	uint32_t cubeMapLocation = glGetUniformLocation(program, "environmentMap");
-	glUniform1i(cubeMapLocation, 0);
 	uint32_t projectionLocation = glGetUniformLocation(program, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, false, &captureProjection[0][0]);
+	glUniformMatrix4fv(projectionLocation, 1, false, glm::value_ptr(captureProjection[0]));
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMap);
@@ -155,7 +153,7 @@ void GeneratePrefilteredMap(uint32_t& prefilteredMap, uint32_t& cubeMap, GLShade
 	unsigned int maxMipLevels = 5;
 	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
 	{
-		// reisze framebuffer according to mip-level size.
+		// resize framebuffer according to mip-level size.
 		unsigned int mipWidth = 128 * std::pow(0.5, mip);
 		unsigned int mipHeight = 128 * std::pow(0.5, mip);
 		glBindRenderbuffer(GL_RENDERBUFFER, rbo);
@@ -169,11 +167,11 @@ void GeneratePrefilteredMap(uint32_t& prefilteredMap, uint32_t& cubeMap, GLShade
 		for (unsigned int i = 0; i < 6; ++i)
 		{
 			uint32_t locView = glGetUniformLocation(program, "view");
-			glUniformMatrix4fv(locView, 1, false, &captureViews[i][0][0]);
-
+			glUniformMatrix4fv(locView, 1, false, glm::value_ptr(captureViews[0]));
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, prefilteredMap, mip);
-
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+			renderCube(cubeVAO, cubeVBO);
 		}
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -201,8 +199,7 @@ void GenerateBRDFLutTexture(uint32_t& brdfLUTTexture, GLShader brdfShader, uint3
 	glViewport(0, 0, 512, 512);
 	glUseProgram(brdfShader.GetProgram());
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	
 }
 
 void renderCube(unsigned int cubeVAO, unsigned int cubeVBO)

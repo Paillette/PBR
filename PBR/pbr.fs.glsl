@@ -255,7 +255,7 @@ void main(void)
 
 	}
 
-	vec3 R = reflect(viewDir, N); 
+	vec3 R = reflect(-viewDir, N); 
 
 //-----------------------------------------> Lambertian Diffuse BRDF
 	vec3 baseColor;
@@ -381,5 +381,5 @@ void main(void)
 		o_BrightnessColor = vec4(1., 0., 0., 1.);
 	
 	
-	o_FragColor = vec4(irradiance, 1.0);
+	o_FragColor = vec4(color, 1.0);
 }
