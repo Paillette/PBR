@@ -87,6 +87,7 @@ void ParseMaterial(Material& mat, FbxNode* node)
 			}
 		}
 
+		//Roughness
 		const FbxProperty property_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sSpecular);
 		const FbxProperty factor_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sSpecularFactor);
 		const FbxProperty property_shiny = fbx_material->FindProperty(FbxSurfaceMaterial::sShininess);
@@ -102,6 +103,19 @@ void ParseMaterial(Material& mat, FbxNode* node)
 				if (texture) {
 					const char *filename = texture->GetFileName();
 					mat.specularTexture = Texture::LoadTexture(filename);
+				}
+			}
+		}
+		//metallic
+		const FbxProperty property_refl = fbx_material->FindProperty(FbxSurfaceMaterial::sReflection);
+		if (property_spec.IsValid())
+		{
+			const int textureCount = property_refl.GetSrcObjectCount<FbxFileTexture>();
+			if (textureCount) {
+				const FbxFileTexture* texture = property_refl.GetSrcObject<FbxFileTexture>(0);
+				if (texture) {
+					const char* filename = texture->GetFileName();
+					mat.metallicTexture = Texture::LoadTexture(filename);
 				}
 			}
 		}
@@ -240,6 +254,7 @@ void AddMesh(Mesh* obj, FbxNode *node, FbxNode *parent)
 				int indirectIndex = meshBiTangents->GetIndexArray().GetAt(vertexIndex);
 				biTangent = meshBiTangents->GetDirectArray().GetAt(indirectIndex);
 			}
+
 
 			vertices[submesh->verticesCount] = { { (float)position[0], (float)position[1], (float)position[2] },
 												 { (float)normal[0], (float)normal[1], (float)normal[2] },

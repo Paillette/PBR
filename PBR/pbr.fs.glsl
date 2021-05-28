@@ -4,6 +4,7 @@ in vec3 v_Position;
 in vec3 v_Normal;
 in vec2 v_TexCoords;
 in vec4 v_Tangent;
+//in mat3 v_TBN; 
 
 layout(location = 0) out vec4 o_FragColor;
 layout(location = 1) out vec4 o_BrightnessColor;
@@ -33,10 +34,11 @@ uniform sampler2D brdfLUT;
 layout(binding = 0) uniform sampler2D u_DiffuseTexture;
 layout(binding = 1) uniform sampler2D u_NormalTexture;
 layout(binding = 2) uniform sampler2D u_ORMTexture;
+layout(binding = 6) uniform sampler2D u_EmissiveTexture;
+
 layout(binding = 3) uniform samplerCube u_cubeMap;
 layout(binding = 4) uniform samplerCube u_radianceCubeMap;
 layout(binding = 5) uniform samplerCube u_irradianceCubeMap;
-layout(binding = 6) uniform sampler2D u_EmissiveTexture;
 layout(binding = 7) uniform samplerCube u_prefilteredmap;
 layout(binding = 8) uniform sampler2D u_brdfLUT;
 
@@ -46,6 +48,7 @@ float PI = 3.1416;
 vec3 TBNnormal()
 {
     vec3 tangentNormal = texture(u_NormalTexture, v_TexCoords).xyz * 2.0 - 1.0;
+	//tangentNormal = pow(tangentNormal, vec3(0.45));
 
     vec3 Q1  = dFdx(v_Position);
     vec3 Q2  = dFdy(v_Position);
@@ -237,6 +240,8 @@ void main(void)
 	else //Other object
 	{
 		vec3 ORMLinear = texture(u_ORMTexture, v_TexCoords).rgb;
+		//TODO : demander à Mr Bengougam si c'est juste => passage en color space linear
+		ORMLinear = pow(ORMLinear, vec3(0.45));
 		AO = ORMLinear.r;
 		roughness = ORMLinear.g;
 		metallic = ORMLinear.b;

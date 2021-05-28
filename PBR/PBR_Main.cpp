@@ -607,7 +607,7 @@ void DrawGUI(Application& app)
 		}
 
 		//Roughness
-		static float f1 = 0.001f;
+		static float f1 = 0.2f;
 		ImGui::SliderFloat("Roughness", &f1, 0.001f, 1.0f, "%.3f");
 		roughness = f1;
 
