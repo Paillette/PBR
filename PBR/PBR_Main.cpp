@@ -41,6 +41,7 @@ float roughness;
 float metallic;
 bool displaySphere = false;
 bool displayIBL = false;
+bool displayAnisotropic = false;
 
 //Objects
 Mesh* sphereMesh;
@@ -315,7 +316,7 @@ struct Application
 		otherMesh = new Mesh();
 		sphereMesh = new Mesh();
 		Mesh::ParseFBX(otherMesh, "model/Mando_Helmet.fbx");
-		Mesh::ParseFBX(sphereMesh, "model/testSphere.fbx");
+		Mesh::ParseFBX(sphereMesh, "model/sphereAnisotropic.fbx");
 		object = otherMesh;
 
 		glGenBuffers(1, &matrixUBO);
@@ -435,6 +436,9 @@ struct Application
 
 		int32_t locDisplayShere = glGetUniformLocation(program, "u_displaySphere");
 		glUniform1i(locDisplayShere, displaySphere);
+
+		int32_t locDisplayAnisotropy = glGetUniformLocation(program, "u_displayAnisotropic");
+		glUniform1i(locDisplayAnisotropy, displayAnisotropic);
 
 		int32_t locDisplayIBL = glGetUniformLocation(program, "u_displayIBL");
 		glUniform1i(locDisplayIBL, displayIBL);
@@ -588,6 +592,10 @@ void DrawGUI(Application& app)
 			app.object = otherMesh;
 		}
 	}
+
+	//Display anisotropic on sphere
+	ImGui::Checkbox("Display Anisotropic", &displayAnisotropic);
+
 
 	if (displaySphere)
 	{

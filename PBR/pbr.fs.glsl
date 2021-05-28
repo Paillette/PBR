@@ -27,6 +27,7 @@ uniform float u_roughness;
 uniform float u_metallic;
 uniform bool u_displaySphere;
 uniform bool u_displayIBL;
+uniform bool u_displayAnisotropic;
 uniform sampler2D brdfLUT;
 
 layout(binding = 0) uniform sampler2D u_DiffuseTexture;
@@ -227,7 +228,7 @@ void main(void)
 	float roughness;
 	float metallic;
 
-	if(u_displaySphere) //Sphere
+	if(u_displaySphere && !u_displayAnisotropic) //Sphere
 	{
 		AO = 1.0f;
 		roughness = u_roughness;
@@ -245,14 +246,13 @@ void main(void)
 
 //----------------------------------------> Normale (N)
 	vec3 N;
-	if(u_displaySphere) //Sphere
+	if(u_displaySphere && !u_displayAnisotropic) //Sphere
 	{
 		N = normalize(v_Normal);
 	}
 	else //Other object
 	{
 		N = TBNnormal();
-
 	}
 
 	vec3 R = reflect(-viewDir, N); 
