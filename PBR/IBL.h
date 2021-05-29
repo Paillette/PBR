@@ -21,10 +21,10 @@
 
 uint32_t LoadCubemap(const char* pathes[6]);
 uint32_t CreateCubemap();
-void GenerateMipmaps(uint32_t& map, unsigned int cubeVAO, unsigned int cubeVBO);
+void GenerateMipmaps(uint32_t& map, unsigned int& cubeVAO, unsigned int& cubeVBO);
 void GenerateIrradiance(uint32_t& irradianceMap, uint32_t& fbo, uint32_t& rbo);
-void SolveDiffuseIntegrale(GLShader irradianceShader, uint32_t& cubeMap, uint32_t& irradianceMap, uint32_t& fbo, unsigned int cubeVAO, unsigned int cubeVBO);
+void SolveDiffuseIntegrale(GLShader irradianceShader, uint32_t& cubeMap, uint32_t& irradianceMap, uint32_t& fbo, unsigned int& cubeVAO, unsigned int& cubeVBO);
 void CreatePrefilteredMap(uint32_t& prefilteredMap);
-void GeneratePrefilteredMap(uint32_t& prefilteredMap, uint32_t& cubeMap, GLShader prefilterShader, uint32_t& fbo, uint32_t& rbo, unsigned int cubeVAO, unsigned int cubeVBO);
+void GeneratePrefilteredMap(uint32_t& prefilteredMap, uint32_t& cubeMap, GLShader prefilterShader, uint32_t& fbo, uint32_t& rbo, unsigned int& cubeVAO, unsigned int& cubeVBO);
 void GenerateBRDFLutTexture(uint32_t& brdfLUTTexture, GLShader brdfShader, uint32_t& fbo, uint32_t& rbo);
-void renderCube(unsigned int cubeVAO, unsigned int cubeVBO);
+void renderCube(unsigned int& cubeVAO, unsigned int& cubeVBO);
