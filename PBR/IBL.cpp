@@ -78,7 +78,7 @@ uint32_t CreateCubemap()
 }
 
 //Irradiance
-void GenerateMipmaps(uint32_t& map, unsigned int cubeVAO, unsigned int cubeVBO)
+void GenerateMipmaps(uint32_t& map, unsigned int& cubeVAO, unsigned int& cubeVBO)
 {
 	glBindTexture(GL_TEXTURE_CUBE_MAP, map);
 	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
@@ -92,9 +92,9 @@ void GenerateIrradiance(uint32_t& irradianceMap, uint32_t& fbo, uint32_t& rbo)
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 32, 32);
 }
 
-void SolveDiffuseIntegrale(GLShader irradianceShader, uint32_t& cubeMap, uint32_t& irradianceMap, uint32_t& fbo, unsigned int cubeVAO, unsigned int cubeVBO)
+void SolveDiffuseIntegrale(GLShader irradianceShader, uint32_t& cubeMap, uint32_t& irradianceMap, uint32_t& fbo, unsigned int& cubeVAO, unsigned int& cubeVBO)
 {
-	int32_t program = irradianceShader.GetProgram();
+	uint32_t program = irradianceShader.GetProgram();
 	glUseProgram(program);
 
 	glActiveTexture(GL_TEXTURE0);
@@ -109,7 +109,7 @@ void SolveDiffuseIntegrale(GLShader irradianceShader, uint32_t& cubeMap, uint32_
 	for (unsigned int i = 0; i < 6; ++i)
 	{
 		uint32_t locView = glGetUniformLocation(program, "view");
-		glUniformMatrix4fv(locView, 1, false, glm::value_ptr(captureViews[0]));
+		glUniformMatrix4fv(locView, 1, false, glm::value_ptr(captureViews[i]));
 
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 		GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, irradianceMap, 0);
@@ -138,7 +138,7 @@ void CreatePrefilteredMap(uint32_t& prefilteredMap)
 	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 }
 
-void GeneratePrefilteredMap(uint32_t& prefilteredMap, uint32_t& cubeMap, GLShader prefilterShader, uint32_t& fbo, uint32_t& rbo, unsigned int cubeVAO, unsigned int cubeVBO)
+void GeneratePrefilteredMap(uint32_t& prefilteredMap, uint32_t& cubeMap, GLShader prefilterShader, uint32_t& fbo, uint32_t& rbo, unsigned int& cubeVAO, unsigned int& cubeVBO)
 {
 	uint32_t program = prefilterShader.GetProgram();
 	glUseProgram(program);
@@ -167,7 +167,7 @@ void GeneratePrefilteredMap(uint32_t& prefilteredMap, uint32_t& cubeMap, GLShade
 		for (unsigned int i = 0; i < 6; ++i)
 		{
 			uint32_t locView = glGetUniformLocation(program, "view");
-			glUniformMatrix4fv(locView, 1, false, glm::value_ptr(captureViews[0]));
+			glUniformMatrix4fv(locView, 1, false, glm::value_ptr(captureViews[i]));
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, prefilteredMap, mip);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -202,7 +202,7 @@ void GenerateBRDFLutTexture(uint32_t& brdfLUTTexture, GLShader brdfShader, uint3
 	
 }
 
-void renderCube(unsigned int cubeVAO, unsigned int cubeVBO)
+void renderCube(unsigned int& cubeVAO, unsigned int& cubeVBO)
 {
 	// initialize (if necessary)
 	if (cubeVAO == 0)
