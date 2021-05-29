@@ -3,7 +3,6 @@
 in vec3 v_Position;
 in vec3 v_Normal;
 in vec2 v_TexCoords;
-in vec4 v_Tangent;
 in mat3 v_TBN; 
 
 layout(location = 0) out vec4 o_FragColor;
@@ -43,7 +42,7 @@ layout(binding = 7) uniform samplerCube u_prefilteredmap;
 layout(binding = 8) uniform sampler2D u_brdfLUT;
 
 
-float PI = 3.1416;
+float PI = 3.141592;
 
 vec3 TBNnormal()
 {
@@ -229,7 +228,6 @@ void main(void)
 	else //Other object
 	{
 		vec3 ORMLinear = texture(u_ORMTexture, v_TexCoords).rgb;
-		ORMLinear = pow(ORMLinear, vec3(0.45));
 		AO = ORMLinear.r;
 		roughness = ORMLinear.g;
 		metallic = ORMLinear.b;
@@ -245,8 +243,7 @@ void main(void)
 	}
 	else //Other object
 	{
-		//N = TBNnormal();
-		N = normalize(v_Normal);
+		N = TBNnormal();
 	}
 
 	vec3 R = reflect(-viewDir, N); 
@@ -261,7 +258,6 @@ void main(void)
 	{
 		baseColor = texture2D(u_DiffuseTexture, v_TexCoords).rgb;
 	}
-	baseColor = pow(baseColor, vec3(2.2));
 
 //----------------------------------------> Specular reflectance at normal incidence
 	vec3 f0 = vec3(0.04);
@@ -271,7 +267,7 @@ void main(void)
 
 //---------------------------------------> Cook-Torrance reflectance equation
 	vec3 reflectance = vec3(0.);
-	
+	vec3 specularity = vec3(0);
 	//per light (only one here)
 	for(int i = 0; i < 1; i++)
 	{
@@ -281,6 +277,8 @@ void main(void)
 		float attenuation = 1.0 /  pow(dist, 2.0);
 		vec3 radiance = lightColor * attenuation;
 
+		//Tester OrenNayar
+		//Ici lambert
 		float NdotH = clamp(dot(N, halfVec), 0., 1.);
 		float NdotL = clamp(dot(N, L), 0., 1.);
 		float VdotH = clamp(dot(viewDir, halfVec), 0., 1.);
@@ -293,27 +291,28 @@ void main(void)
 		//fresnel
 		vec3 Fresnel = fresnelSchlick(HdotV, f0);
 
-		vec3 specularity = ( Fresnel * SpecularDistribution * GeometricFunction )
+		specularity = ( Fresnel * SpecularDistribution * GeometricFunction )
 		                   / (4.0 * NdotV * NdotL + 0.001);
-		
+	    /*
+		float G_Vis = (GeometricFunction * VdotH) / (NdotH * NdotV);
+
+		//https://google.github.io/filament/Filament.html
+		vec3 energyCompensation = 1.0 + f0 * (1.0 / ((1.0 - Fresnel) * G_Vis) - 1.0);
+		// Scale the specular lobe to account for multiscattering
+		specularity *= max(energyCompensation, vec3(0.));
+        */
+
 		//coefficient
-		vec3 ks = Fresnel;
+		vec3 ks = specularity;
 		vec3 kD = vec3(1.0) - ks;
 		kD *= 1.0 - metallic;
 
 		reflectance += ( kD * baseColor / PI + specularity) * radiance * NdotL;
-	
 	}
 
 //---------------------------------------> Cubemap
 	vec3 Fresnel = fresnelSchlickRoughness(NdotV, f0, roughness);
 
-	//coefficient
-	vec3 ks = Fresnel;
-	vec3 kD = vec3(1.0) - ks;
-	kD *= 1.0 - metallic;
-
-//--------------------------------------> Cubemap
     //radiance and irradiance textures created in a software (cmftStudio) pass to shader 
 	vec3 cubeMap = texture(u_cubeMap, normalize(v_Normal)).rgb;
 	vec3 radiance = texture(u_radianceCubeMap, normalize(v_Normal)).rgb;
@@ -335,10 +334,16 @@ void main(void)
     vec2 brdf  = texture(u_brdfLUT, vec2(max(dot(N, viewDir), 0.0), roughness)).rg;
     specular = prefilteredColor * (Fresnel * brdf.x + brdf.y);
 
-
+	/*
+	//https://google.github.io/filament/Filament.html
+	vec3 energyCompensation = 1.0 + f0 * (1.0 / brdf.x - 1.0);
+	// Scale the specular lobe to account for multiscattering
+	specular *= energyCompensation;
+	*/
 //--------------------------------------->DiffuseColor
 	vec3 diffuse = baseColor;
-	vec3 ambient = vec3(0.03) * diffuse;
+	vec3 indirectDiffuse = irradiance;
+	diffuse *= indirectDiffuse;
 
 	if(!u_displaySphere)
 		amountIBL = 0.02;
@@ -351,18 +356,23 @@ void main(void)
 
 	}*/
 
-	ambient *= AO;
-    vec3 color = ambient + reflectance;
-	color = color / ( color + vec3(1.0));
+	//coefficient => multiple scattering dans indiffuse lighting
+	vec3 ks = specular;
+	vec3 kD = vec3(1.0) - ks;
+	kD *= 1.0 - metallic;
 
-	ambient = (kD * diffuse + specular) * AO;
-	color = ambient + reflectance;
+	vec3 ambient = (kD * diffuse + specular) * AO;
+	vec3 color = ambient + ( reflectance * PI );
+
 
 	//emissive
 	vec3 emissive = texture(u_EmissiveTexture, v_TexCoords).rgb;
 	//Need to be multiply by emissiveIntensity
 	emissive *= 10.;
 	color += emissive;
+	
+	//tonemapping Reinhard - filmic
+	color /= color + vec3(1.0);
 
 	//gamma correction 
 	color = pow(color, vec3(1.0 / 2.2));

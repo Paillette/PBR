@@ -39,7 +39,7 @@ uint32_t LoadCubemap(const char* pathes[6])
 		if (data)
 		{
 			std::cout << "Cubemap texture load at path: " << pathes[i] << std::endl;
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_SRGB8_ALPHA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		}
 		else
 		{

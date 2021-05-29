@@ -66,7 +66,7 @@ void ParseMaterial(Material& mat, FbxNode* node)
 					const char *name = texture->GetName();
 					const char *filename = texture->GetFileName();
 					const char *relativeFilename = texture->GetRelativeFileName();
-					mat.diffuseTexture = Texture::LoadTexture(filename);
+					mat.diffuseTexture = Texture::LoadTexture(filename, true);
 				}
 			}
 		}
@@ -82,7 +82,7 @@ void ParseMaterial(Material& mat, FbxNode* node)
 				const FbxFileTexture* texture = property_amb.GetSrcObject<FbxFileTexture>(0);
 				if (texture) {
 					const char *filename = texture->GetFileName();
-					mat.ambientTexture = Texture::LoadTexture(filename);
+					mat.ambientTexture = Texture::LoadTexture(filename, true);
 				}
 			}
 		}
@@ -102,7 +102,7 @@ void ParseMaterial(Material& mat, FbxNode* node)
 				const FbxFileTexture* texture = property_spec.GetSrcObject<FbxFileTexture>(0);
 				if (texture) {
 					const char *filename = texture->GetFileName();
-					mat.specularTexture = Texture::LoadTexture(filename);
+					mat.specularTexture = Texture::LoadTexture(filename, false);
 				}
 			}
 		}
@@ -115,7 +115,7 @@ void ParseMaterial(Material& mat, FbxNode* node)
 				const FbxFileTexture* texture = property_refl.GetSrcObject<FbxFileTexture>(0);
 				if (texture) {
 					const char* filename = texture->GetFileName();
-					mat.metallicTexture = Texture::LoadTexture(filename);
+					mat.metallicTexture = Texture::LoadTexture(filename, false);
 				}
 			}
 		}
@@ -132,7 +132,7 @@ void ParseMaterial(Material& mat, FbxNode* node)
 				const FbxFileTexture* texture = property_emissive.GetSrcObject<FbxFileTexture>(0);
 				if (texture) {
 					const char* filename = texture->GetFileName();
-					mat.emissiveTexure = Texture::LoadTexture(filename);
+					mat.emissiveTexure = Texture::LoadTexture(filename, true);
 				}
 			}
 		}
@@ -150,7 +150,7 @@ void ParseMaterial(Material& mat, FbxNode* node)
 				if (texture)
 				{
 					const char* filename = texture->GetFileName();
-					mat.normalTexture = Texture::LoadTexture(filename);
+					mat.normalTexture = Texture::LoadTexture(filename, false);
 				}
 			}
 		}

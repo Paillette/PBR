@@ -134,7 +134,7 @@ struct Application
 			glVertexAttribPointer(positionLocation, 3, GL_FLOAT, false, sizeof(Vertex), 0);
 			glVertexAttribPointer(normalLocation, 3, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, normal));
 			glVertexAttribPointer(texcoordsLocation, 2, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, texcoords));
-			glVertexAttribPointer(tangentLocation, 4, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, tangent));
+			glVertexAttribPointer(tangentLocation, 3, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, tangent));
 
 			glEnableVertexAttribArray(positionLocation);
 			glEnableVertexAttribArray(normalLocation);
@@ -294,6 +294,7 @@ struct Application
 		std::cout << "Renderer : " << glGetString(GL_RENDERER) << std::endl;
 
 
+
 		Texture::SetupManager();
 
 		InitShaders();
@@ -333,7 +334,7 @@ struct Application
 		GenerateBuffers(otherMesh);
 		GenerateBuffers(sphereMesh);
 
-		glEnable(GL_FRAMEBUFFER_SRGB);
+		//glEnable(GL_FRAMEBUFFER_SRGB);
 
 		offscreenBuffer.CreateFramebuffer(width, height, true);
 		{
@@ -380,7 +381,7 @@ struct Application
 	void RenderOffscreen()
 	{
 		//offscreenBuffer.EnableRender();
-
+		// au début : activation du srgb si render target est en 8bit
 		glBindFramebuffer(GL_FRAMEBUFFER, offscreenBuffer.FBO);
 		glViewport(0, 0, offscreenBuffer.width, offscreenBuffer.height);
 

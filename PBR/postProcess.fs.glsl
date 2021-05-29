@@ -9,11 +9,14 @@ varying vec2 v_UV;
 void main(void)
 {
 const float gamma = 2.2;
-
+//color lineaire => framebuffer rgba16
+//8bit => application de la correction gamma
+//16bit => pas obligé 
 	vec3 hdrColor = texture2D(u_Texture, v_UV).rgb;
 	vec3 bloomColor = texture2D(u_blurTexture, v_UV).rgb;
 	hdrColor += bloomColor;
 
+	//tonemapping
 	vec3 color = vec3(1.0) - exp(-hdrColor * 2.0);
 	vec3 result = pow(color, vec3(1.0 / 2.2));
 

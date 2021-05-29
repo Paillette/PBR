@@ -39,7 +39,7 @@ void Texture::PurgeTextures()
 	textures.shrink_to_fit();
 }
 
-uint32_t Texture::LoadTexture(const char* filepath)
+uint32_t Texture::LoadTexture(const char* filepath, bool srgb)
 {
 	uint32_t textureID = Texture::CheckExist(filepath);
 	if (textureID > 0)
@@ -55,7 +55,7 @@ uint32_t Texture::LoadTexture(const char* filepath)
 		return textures[0].id;
 	}
 
-	textureID = CreateTextureRGBA(width, height, data, true);
+	textureID = CreateTextureRGBA(width, height, data, true, srgb);
 	stbi_image_free(data);
 
 	textures.push_back({ filepath, textureID });
