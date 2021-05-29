@@ -4,7 +4,7 @@ in vec3 v_Position;
 in vec3 v_Normal;
 in vec2 v_TexCoords;
 in vec4 v_Tangent;
-//in mat3 v_TBN; 
+in mat3 v_TBN; 
 
 layout(location = 0) out vec4 o_FragColor;
 layout(location = 1) out vec4 o_BrightnessColor;
@@ -48,19 +48,8 @@ float PI = 3.1416;
 vec3 TBNnormal()
 {
     vec3 tangentNormal = texture(u_NormalTexture, v_TexCoords).xyz * 2.0 - 1.0;
-	//tangentNormal = pow(tangentNormal, vec3(0.45));
 
-    vec3 Q1  = dFdx(v_Position);
-    vec3 Q2  = dFdy(v_Position);
-    vec2 st1 = dFdx(v_TexCoords);
-    vec2 st2 = dFdy(v_TexCoords);
-
-    vec3 N   = normalize(v_Normal);
-    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
-    vec3 B  = -normalize(cross(N, T));
-    mat3 TBN = mat3(T, B, N);
-
-    return normalize(TBN * tangentNormal);
+    return normalize(v_TBN * tangentNormal);
 }
 
 
@@ -240,7 +229,6 @@ void main(void)
 	else //Other object
 	{
 		vec3 ORMLinear = texture(u_ORMTexture, v_TexCoords).rgb;
-		//TODO : demander à Mr Bengougam si c'est juste => passage en color space linear
 		ORMLinear = pow(ORMLinear, vec3(0.45));
 		AO = ORMLinear.r;
 		roughness = ORMLinear.g;
@@ -257,7 +245,8 @@ void main(void)
 	}
 	else //Other object
 	{
-		N = TBNnormal();
+		//N = TBNnormal();
+		N = normalize(v_Normal);
 	}
 
 	vec3 R = reflect(-viewDir, N); 
