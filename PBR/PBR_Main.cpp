@@ -1,3 +1,4 @@
+#pragma once
 #include "OpenGLcore.h"
 #include <GLFW/glfw3.h>
 
@@ -27,10 +28,10 @@
 #include "imgui_demo.cpp"
 
 #include "../common/GLShader.h"
-#include "mat4.h"
 #include "Texture.h"
 #include "Mesh.h"
 #include "Framebuffer.h"
+#include "IBL.h"
 
 const char* glsl_version = "#version 420";
 
@@ -40,6 +41,7 @@ float roughness;
 float metallic;
 bool displaySphere = false;
 bool displayIBL = false;
+bool displayAnisotropic = false;
 
 //Objects
 Mesh* sphereMesh;
@@ -50,17 +52,29 @@ struct Application
 {
 	Mesh* object;
 
-	uint32_t quadVAO;
+	uint32_t quadVAO = 0;
 
-	GLShader opaqueShader;
-	GLShader copyShader;	
+	GLShader pbrShader;
+	GLShader postProcessShader;
+	GLShader irradianceShader;
+	GLShader prefilterShader;
+	GLShader brdfShader;
+	GLShader blurShader;
+	GLShader g_skyboxShader;
 
 	int32_t width;
 	int32_t height;
 
 	uint32_t matrixUBO;
-
 	uint32_t materialUBO;
+	unsigned int captureFBO;
+	unsigned int captureRBO;
+	unsigned int colorBuffers[2];
+	unsigned int pingpongFBO[2];
+	unsigned int pingpongColorbuffers[2];
+
+	unsigned int cubeVAO = 0;
+	unsigned int cubeVBO = 0;
 
 	Framebuffer offscreenBuffer;
 
@@ -68,37 +82,36 @@ struct Application
 	uint32_t cubeMapID;
 	uint32_t irradianceMapID;
 	uint32_t radianceMapID;
-	GLShader g_skyboxShader;
+	uint32_t prefilteredMap;
+	uint32_t brdfLUTTextureID;
 	GLuint skyboxVAO, skyboxVBO;
 
-	uint32_t LoadCubemap(const char* pathes[6])
+	unsigned int quadVBO;
+	void renderQuad()
 	{
-		unsigned int cubemapTexture;
-		glGenTextures(1, &cubemapTexture);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
-
-		int width, height, c;
-		for (int i = 0; i < 6; i++)
+		if (quadVAO == 0)
 		{
-			uint8_t* data = stbi_load(pathes[i], &width, &height, &c, STBI_rgb_alpha);
-			if (data)
-			{
-				std::cout << "Cubemap texture load at path: " << pathes[i] << std::endl;
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-			}
-			else
-			{
-				std::cout << "Cubemap texture failed to load at path: " << GL_TEXTURE_CUBE_MAP_POSITIVE_X + i << std::endl;
-			}
-			stbi_image_free(data);
+			float quadVertices[] = {
+				// positions        // texture Coords
+				-1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+				-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+				 1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+				 1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+			};
+			// setup plane VAO
+			glGenVertexArrays(1, &quadVAO);
+			glGenBuffers(1, &quadVBO);
+			glBindVertexArray(quadVAO);
+			glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+			glEnableVertexAttribArray(1);
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 		}
-
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-
-		return cubemapTexture;
+		glBindVertexArray(quadVAO);
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		glBindVertexArray(0);
 	}
 
 	void GenerateBuffers(Mesh* object)
@@ -121,7 +134,7 @@ struct Application
 			glVertexAttribPointer(positionLocation, 3, GL_FLOAT, false, sizeof(Vertex), 0);
 			glVertexAttribPointer(normalLocation, 3, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, normal));
 			glVertexAttribPointer(texcoordsLocation, 2, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, texcoords));
-			glVertexAttribPointer(tangentLocation, 4, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, tangent));
+			glVertexAttribPointer(tangentLocation, 3, GL_FLOAT, false, sizeof(Vertex), (void*)offsetof(Vertex, tangent));
 
 			glEnableVertexAttribArray(positionLocation);
 			glEnableVertexAttribArray(normalLocation);
@@ -132,6 +145,43 @@ struct Application
 			DeleteBufferObject(mesh.VBO);
 			DeleteBufferObject(mesh.IBO);
 		}
+	}
+
+	void InitShaders() 
+	{
+		pbrShader.LoadVertexShader("pbr.vs.glsl");
+		pbrShader.LoadFragmentShader("pbr.fs.glsl");
+		pbrShader.Create();
+
+		postProcessShader.LoadVertexShader("postProcess.vs.glsl");
+		postProcessShader.LoadFragmentShader("postProcess.fs.glsl");
+		postProcessShader.Create();
+
+		irradianceShader.LoadVertexShader("cubemap.vs.glsl");
+		irradianceShader.LoadFragmentShader("irradiance.fs.glsl");
+		irradianceShader.Create();
+
+		prefilterShader.LoadVertexShader("cubemap.vs.glsl");
+		prefilterShader.LoadFragmentShader("prefilter.fs.glsl");
+		prefilterShader.Create();
+
+		brdfShader.LoadVertexShader("brdf.vs.glsl");
+		brdfShader.LoadFragmentShader("brdf.fs.glsl");
+		brdfShader.Create();
+
+		blurShader.LoadVertexShader("blur.vs.glsl");
+		blurShader.LoadFragmentShader("blur.fs.glsl");
+		blurShader.Create();
+	}
+
+	void InitFrameBuffer() {
+		glGenFramebuffers(1, &captureFBO);
+		glGenRenderbuffers(1, &captureRBO);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBO);
 	}
 
 	void InitCubeMap()
@@ -148,20 +198,6 @@ struct Application
 		cubeMapID = LoadCubemap(pathes);
 	}
 
-	void InitIrradianceMap()
-	{
-		const char* pathes[6] = {
-			"../data/envmaps/Studio_Irradiance_posx.png",
-			"../data/envmaps/Studio_Irradiance_negx.png",
-			"../data/envmaps/Studio_Irradiance_posy.png",
-			"../data/envmaps/Studio_Irradiance_negy.png",
-			"../data/envmaps/Studio_Irradiance_posz.png",
-			"../data/envmaps/Studio_Irradiance_negz.png"
-		};
-
-		irradianceMapID = LoadCubemap(pathes);
-	}
-
 	void InitRadianceMap()
 	{
 		const char* pathes[6] = {
@@ -174,6 +210,75 @@ struct Application
 		};
 
 		radianceMapID = LoadCubemap(pathes);
+	}
+
+	void InitBloomBuffer()
+	{
+		glGenTextures(2, colorBuffers);
+		for (size_t i = 0; i < 2; i++)
+		{
+			glBindTexture(GL_TEXTURE_2D, colorBuffers[i]);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, colorBuffers[i], 0);
+		}
+
+		unsigned int attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+		glDrawBuffers(2, attachments);
+
+		// ping-pong-framebuffer for blurring
+		glGenFramebuffers(2, pingpongFBO);
+		glGenTextures(2, pingpongColorbuffers);
+		for (unsigned int i = 0; i < 2; i++)
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
+			glBindTexture(GL_TEXTURE_2D, pingpongColorbuffers[i]);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // we clamp to the edge as the blur filter would otherwise sample repeated texture values!
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingpongColorbuffers[i], 0);
+			// also check if framebuffers are complete (no need for depth buffer)
+			if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+				std::cout << "Framebuffer not complete!" << std::endl;
+		}
+	}
+
+	void RenderBloom()
+	{
+		bool horizontal = true, first_iteration = true;
+		unsigned int amount = 10;
+		int32_t program = blurShader.GetProgram();
+		glUseProgram(program);
+		for (unsigned int i = 0; i < amount; i++)
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
+			int32_t horizontalLocation = glGetAttribLocation(program, "horizontal");
+			glUniform1i(horizontalLocation, horizontal);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, first_iteration ? colorBuffers[1] : pingpongColorbuffers[!horizontal]);  // bind texture of other framebuffer (or scene if first iteration)
+			renderQuad();
+			horizontal = !horizontal;
+			if (first_iteration)
+				first_iteration = false;
+		}
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		program = postProcessShader.GetProgram();
+		glUseProgram(program);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, colorBuffers[0]);
+		glActiveTexture(GL_TEXTURE1);
+		//glBindTexture(GL_TEXTURE_2D, colorBuffers[1]);
+		glBindTexture(GL_TEXTURE_2D, pingpongColorbuffers[!horizontal]);
+
+		renderQuad();
 	}
 
 	void Initialize()
@@ -189,24 +294,30 @@ struct Application
 		std::cout << "Renderer : " << glGetString(GL_RENDERER) << std::endl;
 
 
+
 		Texture::SetupManager();
 
-		opaqueShader.LoadVertexShader("opaque.vs.glsl");
-		opaqueShader.LoadFragmentShader("opaque.fs.glsl");
-		opaqueShader.Create();
-		copyShader.LoadVertexShader("copy.vs.glsl");
-		copyShader.LoadFragmentShader("copy.fs.glsl");
-		copyShader.Create();
+		InitShaders();
 
+		InitFrameBuffer();
 		InitCubeMap();
-		InitIrradianceMap();
-		InitRadianceMap();
+		GenerateMipmaps(cubeMapID, cubeVAO, cubeVBO);
+		GenerateIrradiance(irradianceMapID, captureFBO, captureRBO);
+		SolveDiffuseIntegrale(irradianceShader, cubeMapID, irradianceMapID, captureFBO, cubeVAO, cubeVBO);
+
+		CreatePrefilteredMap(prefilteredMap);
+		GeneratePrefilteredMap(prefilteredMap, cubeMapID, prefilterShader, captureFBO, captureRBO, cubeVAO, cubeVBO);
+		GenerateBRDFLutTexture(brdfLUTTextureID, brdfShader, captureFBO, captureRBO); 
+		renderQuad();
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		//InitBloomBuffer();
 
 		//Load meshes
 		otherMesh = new Mesh();
 		sphereMesh = new Mesh();
 		Mesh::ParseFBX(otherMesh, "model/Mando_Helmet.fbx");
-		Mesh::ParseFBX(sphereMesh, "model/testSphere.fbx");
+		Mesh::ParseFBX(sphereMesh, "model/sphereAnisotropic.fbx");
 		object = otherMesh;
 
 		glGenBuffers(1, &matrixUBO);
@@ -219,14 +330,11 @@ struct Application
 		glBindBuffer(GL_UNIFORM_BUFFER, materialUBO);
 		glBufferData(GL_UNIFORM_BUFFER, 3 * sizeof(vec4), nullptr, GL_STREAM_DRAW);
 		glBindBufferBase(GL_UNIFORM_BUFFER, 1, materialUBO);
-
-		int32_t program = opaqueShader.GetProgram();
-		glUseProgram(program);
 		
 		GenerateBuffers(otherMesh);
 		GenerateBuffers(sphereMesh);
 
-		glEnable(GL_FRAMEBUFFER_SRGB);
+		//glEnable(GL_FRAMEBUFFER_SRGB);
 
 		offscreenBuffer.CreateFramebuffer(width, height, true);
 		{
@@ -236,7 +344,7 @@ struct Application
 			glBindVertexArray(quadVAO);
 			uint32_t vbo = CreateBufferObject(BufferType::VBO, sizeof(quad), quad);
 
-			program = copyShader.GetProgram();
+			uint32_t program = postProcessShader.GetProgram();
 			glUseProgram(program);
 			int32_t positionLocation = glGetAttribLocation(program, "a_Position");
 			glVertexAttribPointer(positionLocation, 2, GL_FLOAT, false, sizeof(vec2), 0);
@@ -248,6 +356,7 @@ struct Application
 
 		glDisable(GL_FRAMEBUFFER_SRGB);
 
+		glUseProgram(pbrShader.GetProgram());
 		//Cubemap
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapID);
@@ -255,9 +364,14 @@ struct Application
 		glActiveTexture(GL_TEXTURE4);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, radianceMapID);
 
-
 		glActiveTexture(GL_TEXTURE5);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMapID);
+
+		glActiveTexture(GL_TEXTURE7);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, prefilteredMap);
+
+		glActiveTexture(GL_TEXTURE8);
+		glBindTexture(GL_TEXTURE_2D, brdfLUTTextureID);
 
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -267,6 +381,7 @@ struct Application
 	void RenderOffscreen()
 	{
 		//offscreenBuffer.EnableRender();
+		// au début : activation du srgb si render target est en 8bit
 		glBindFramebuffer(GL_FRAMEBUFFER, offscreenBuffer.FBO);
 		glViewport(0, 0, offscreenBuffer.width, offscreenBuffer.height);
 
@@ -278,7 +393,7 @@ struct Application
 		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_CULL_FACE);
 
-		uint32_t program = opaqueShader.GetProgram();
+		uint32_t program = pbrShader.GetProgram();
 		glUseProgram(program);
 
 		mat4 world(1.f), view, perspective;
@@ -323,6 +438,9 @@ struct Application
 		int32_t locDisplayShere = glGetUniformLocation(program, "u_displaySphere");
 		glUniform1i(locDisplayShere, displaySphere);
 
+		int32_t locDisplayAnisotropy = glGetUniformLocation(program, "u_displayAnisotropic");
+		glUniform1i(locDisplayAnisotropy, displayAnisotropic);
+
 		int32_t locDisplayIBL = glGetUniformLocation(program, "u_displayIBL");
 		glUniform1i(locDisplayIBL, displayIBL);
 
@@ -336,7 +454,7 @@ struct Application
 			glBindBuffer(GL_UNIFORM_BUFFER, materialUBO);
 			vec4* materialMat = (vec4*)glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
 			materialMat[0] = vec4(mat.ambientColor, 0.f);
-			materialMat[1] = vec4(mat.diffuseColor, 0.f);
+			materialMat[1] = vec4(mat.diffuseColor, mat.emissiveIntensity);
 			materialMat[2] = vec4(mat.specularColor, mat.shininess);
 			glUnmapBuffer(GL_UNIFORM_BUFFER);
 
@@ -348,10 +466,19 @@ struct Application
 			//Texture spec
 			glActiveTexture(GL_TEXTURE2);
 			glBindTexture(GL_TEXTURE_2D, mat.specularTexture);
+			//Emissive texture
+			glActiveTexture(GL_TEXTURE6);
+			glBindTexture(GL_TEXTURE_2D, mat.emissiveTexure);
 			
 			glBindVertexArray(mesh.VAO);
 			glDrawElements(GL_TRIANGLES, object->meshes[i].indicesCount, GL_UNSIGNED_INT, 0);
 		}
+
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMapID);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		//RenderBloom();
 	}
 
 	void Render()
@@ -363,7 +490,7 @@ struct Application
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, width, height);
 
-		uint32_t program = copyShader.GetProgram();
+		uint32_t program = postProcessShader.GetProgram();
 		glUseProgram(program);
 
 		int32_t samplerLocation = glGetUniformLocation(program, "u_Texture");
@@ -408,8 +535,9 @@ struct Application
 		Texture::PurgeTextures();
 		glDeleteTextures(1, &cubeMapID);
 
-		copyShader.Destroy();
-		opaqueShader.Destroy();
+		postProcessShader.Destroy();
+		pbrShader.Destroy();
+		blurShader.Destroy();
 	}
 };
 
@@ -466,6 +594,10 @@ void DrawGUI(Application& app)
 		}
 	}
 
+	//Display anisotropic on sphere
+	ImGui::Checkbox("Display Anisotropic", &displayAnisotropic);
+
+
 	if (displaySphere)
 	{
 		//Albedo
@@ -476,7 +608,7 @@ void DrawGUI(Application& app)
 		}
 
 		//Roughness
-		static float f1 = 0.001f;
+		static float f1 = 0.2f;
 		ImGui::SliderFloat("Roughness", &f1, 0.001f, 1.0f, "%.3f");
 		roughness = f1;
 
@@ -486,7 +618,7 @@ void DrawGUI(Application& app)
 		metallic = f2;
 	}
 
-	ImGui::Checkbox("Display IBL", &displayIBL);
+	ImGui::Checkbox("Display fake IBL", &displayIBL);
 
 	ImGui::End();
 

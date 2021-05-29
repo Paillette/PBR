@@ -48,6 +48,9 @@
     <ClInclude Include="Vertex.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
+    <ClInclude Include="IBL.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -71,18 +74,42 @@
     <ClCompile Include="PBR_Main.cpp">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
+    <ClCompile Include="IBL.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="opaque.fs.glsl">
+    <None Include="pbr.fs.glsl">
       <Filter>shaders</Filter>
     </None>
-    <None Include="opaque.vs.glsl">
+    <None Include="pbr.vs.glsl">
       <Filter>shaders</Filter>
     </None>
-    <None Include="copy.fs.glsl">
+    <None Include="postProcess.fs.glsl">
       <Filter>shaders</Filter>
     </None>
-    <None Include="copy.vs.glsl">
+    <None Include="postProcess.vs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="blur.fs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="blur.vs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="brdf.fs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="brdf.vs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="irradiance.fs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="prefilter.fs.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="cubemap.vs.glsl">
       <Filter>shaders</Filter>
     </None>
   </ItemGroup>

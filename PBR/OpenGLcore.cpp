@@ -29,13 +29,13 @@ void DeleteBufferObject(uint32_t& BO) {
 // notez que le format de donnee interne (GL_RGBA8) et image (GL_RGBA + GL_UNSIGNED_BYTE)
 // sont predefinis. Idem pour le filtrage. A vous de generaliser cette fonction.
 // Pensez egalement aux formats internes SRGB qui effectuent automatiquement la decompression du gamma
-uint32_t CreateTextureRGBA(const uint32_t width, const uint32_t height, const void* data, bool enableMipmaps)
+uint32_t CreateTextureRGBA(const uint32_t width, const uint32_t height, const void* data, bool enableMipmaps, bool srgb)
 {
 	uint32_t textureID;
 
 	glGenTextures(1, &textureID);
 	glBindTexture(GL_TEXTURE_2D, textureID);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	glTexImage2D(GL_TEXTURE_2D, 0, srgb ? GL_SRGB8_ALPHA8 : GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	if (enableMipmaps) {
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);

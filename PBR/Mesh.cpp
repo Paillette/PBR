@@ -66,7 +66,7 @@ void ParseMaterial(Material& mat, FbxNode* node)
 					const char *name = texture->GetName();
 					const char *filename = texture->GetFileName();
 					const char *relativeFilename = texture->GetRelativeFileName();
-					mat.diffuseTexture = Texture::LoadTexture(filename);
+					mat.diffuseTexture = Texture::LoadTexture(filename, true);
 				}
 			}
 		}
@@ -82,11 +82,12 @@ void ParseMaterial(Material& mat, FbxNode* node)
 				const FbxFileTexture* texture = property_amb.GetSrcObject<FbxFileTexture>(0);
 				if (texture) {
 					const char *filename = texture->GetFileName();
-					mat.ambientTexture = Texture::LoadTexture(filename);
+					mat.ambientTexture = Texture::LoadTexture(filename, true);
 				}
 			}
 		}
 
+		//Roughness
 		const FbxProperty property_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sSpecular);
 		const FbxProperty factor_spec = fbx_material->FindProperty(FbxSurfaceMaterial::sSpecularFactor);
 		const FbxProperty property_shiny = fbx_material->FindProperty(FbxSurfaceMaterial::sShininess);
@@ -101,7 +102,37 @@ void ParseMaterial(Material& mat, FbxNode* node)
 				const FbxFileTexture* texture = property_spec.GetSrcObject<FbxFileTexture>(0);
 				if (texture) {
 					const char *filename = texture->GetFileName();
-					mat.specularTexture = Texture::LoadTexture(filename);
+					mat.specularTexture = Texture::LoadTexture(filename, false);
+				}
+			}
+		}
+		//metallic
+		const FbxProperty property_refl = fbx_material->FindProperty(FbxSurfaceMaterial::sReflection);
+		if (property_spec.IsValid())
+		{
+			const int textureCount = property_refl.GetSrcObjectCount<FbxFileTexture>();
+			if (textureCount) {
+				const FbxFileTexture* texture = property_refl.GetSrcObject<FbxFileTexture>(0);
+				if (texture) {
+					const char* filename = texture->GetFileName();
+					mat.metallicTexture = Texture::LoadTexture(filename, false);
+				}
+			}
+		}
+
+		//Emissive
+		const FbxProperty property_emissive = fbx_material->FindProperty(FbxSurfaceMaterial::sEmissive);
+		const FbxProperty factor_emissive = fbx_material->FindProperty(FbxSurfaceMaterial::sEmissiveFactor);
+		if (property_emissive.IsValid())
+		{
+			mat.emissiveIntensity = GetProperty(factor_emissive);
+
+			const int textureCount = property_emissive.GetSrcObjectCount<FbxFileTexture>();
+			if (textureCount) {
+				const FbxFileTexture* texture = property_emissive.GetSrcObject<FbxFileTexture>(0);
+				if (texture) {
+					const char* filename = texture->GetFileName();
+					mat.emissiveTexure = Texture::LoadTexture(filename, true);
 				}
 			}
 		}
@@ -119,7 +150,7 @@ void ParseMaterial(Material& mat, FbxNode* node)
 				if (texture)
 				{
 					const char* filename = texture->GetFileName();
-					mat.normalTexture = Texture::LoadTexture(filename);
+					mat.normalTexture = Texture::LoadTexture(filename, false);
 				}
 			}
 		}
@@ -224,6 +255,7 @@ void AddMesh(Mesh* obj, FbxNode *node, FbxNode *parent)
 				biTangent = meshBiTangents->GetDirectArray().GetAt(indirectIndex);
 			}
 
+
 			vertices[submesh->verticesCount] = { { (float)position[0], (float)position[1], (float)position[2] },
 												 { (float)normal[0], (float)normal[1], (float)normal[2] },
 												 { (float)uv[0], (float)uv[1] },
@@ -303,7 +335,6 @@ bool Mesh::ParseFBX(Mesh* obj, const char* filepath)
 		//FbxGeometryConverter geometryConverter(g_fbxManager);
 		//geometryConverter.Triangulate(scene, true);
 
-		// On compare le repère de la scene avec le repere souhaite
 		FbxAxisSystem SceneAxisSystem = g_scene->GetGlobalSettings().GetAxisSystem();
 		FbxAxisSystem OurAxisSystem(FbxAxisSystem::eYAxis, FbxAxisSystem::eParityOdd, FbxAxisSystem::eRightHanded);
 		if (SceneAxisSystem != OurAxisSystem) {
@@ -311,7 +342,7 @@ bool Mesh::ParseFBX(Mesh* obj, const char* filepath)
 		}
 
 		FbxSystemUnit SceneSystemUnit = g_scene->GetGlobalSettings().GetSystemUnit();
-		// L'unite standard du Fbx est le centimetre, que l'on peut tester ainsi
+
 		if (SceneSystemUnit != FbxSystemUnit::cm) {
 			printf("[warning] FbxSystemUnit vaut %f cm (= 1 %s) !\n", SceneSystemUnit.GetScaleFactor(), SceneSystemUnit.GetScaleFactorAsString().Buffer());
 			FbxSystemUnit::cm.ConvertScene(g_scene);

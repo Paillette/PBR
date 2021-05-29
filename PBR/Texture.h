@@ -12,7 +12,7 @@ struct Texture
 	//int height;
 	//int bpp;
 
-	static uint32_t LoadTexture(const char* path);
+	static uint32_t LoadTexture(const char* path, bool srgb);
 	
 	// version tres basique d'un texture manager
 	static std::vector<Texture> textures;
