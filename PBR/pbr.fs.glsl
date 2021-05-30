@@ -239,7 +239,7 @@ void main(void)
 			vec3 anisotropicDirection = vec3(1.0, 0.0, 0.0);
 			float anisotropicIntensity = 0.8;
 
-			vec3 t = normalize(v_TBN * anisotropicDirection);
+			vec3 t = normalize(v_Normal * anisotropicDirection);
 			vec3 b = normalize(cross(v_Normal, t));
 			
 			float TdotV = dot(t, viewDir);
