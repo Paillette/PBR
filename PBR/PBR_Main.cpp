@@ -36,11 +36,12 @@
 const char* glsl_version = "#version 420";
 
 //PBR settings for GUI
-ImColor albedo = ImColor(1.0f, 0.0f, 0.0f);
+ImColor albedo = ImColor(1.0f, 1.0f, 1.0f);
 float roughness;
 float metallic;
 bool displaySphere = false;
 bool displayAnisotropic = false;
+float anisotropyIntensity = 0.5f;
 float lightIntensity;
 ImColor lightColor = ImColor(1.0f, 1.0f, 1.0f);
 
@@ -294,7 +295,7 @@ struct Application
 		std::cout << "Vendor : " << glGetString(GL_VENDOR) << std::endl;
 		std::cout << "Renderer : " << glGetString(GL_RENDERER) << std::endl;
 
-
+		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
 		Texture::SetupManager();
 
@@ -441,6 +442,9 @@ struct Application
 
 		int32_t locDisplayAnisotropy = glGetUniformLocation(program, "u_displayAnisotropic");
 		glUniform1i(locDisplayAnisotropy, displayAnisotropic);
+
+		int32_t locAnisotropyIntensity = glGetUniformLocation(program, "anisotropyIntensity");
+		glUniform1f(locAnisotropyIntensity, anisotropyIntensity);
 
 		int32_t locIntensityLight = glGetUniformLocation(program, "u_lightIntensity");
 		glUniform1f(locIntensityLight, lightIntensity);
@@ -621,6 +625,10 @@ void DrawGUI(Application& app)
 
 		//Display anisotropic on sphere
 		ImGui::Checkbox("Display Anisotropic", &displayAnisotropic);
+
+		static float f3 = anisotropyIntensity;
+		ImGui::SliderFloat("Anisotropy Intensity", &f3, -1.0f, 1.0f, "%.3f");
+		anisotropyIntensity = f3;
 	}
 
 	//Directional light

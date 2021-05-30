@@ -31,6 +31,7 @@ uniform bool u_displaySphere;
 uniform bool u_displayAnisotropic;
 uniform float u_lightIntensity;
 uniform vec3 u_lightColor;
+uniform float anisotropyIntensity;
 
 //From FBX
 layout(binding = 0) uniform sampler2D u_DiffuseTexture;
@@ -236,12 +237,13 @@ void main(void)
 		//------------------------------------------------------------------------> anisotropy
 		if(u_displayAnisotropic)
 		{
-			vec3 anisotropicDirection = vec3(1.0, 0.0, 0.0);
-			float anisotropicIntensity = 0.8;
-
-			vec3 t = normalize(v_Normal * anisotropicDirection);
-			vec3 b = normalize(cross(v_Normal, t));
+			//vec3 anisotropicDirection = vec3(1.0, 0.0, 0.0);
+			//vec3 t = normalize(v_TBN * anisotropicDirection);
+			//vec3 b = normalize(cross(v_Normal, t));
 			
+			vec3 t = normalize(v_TBN[0]);
+			vec3 b = normalize(v_TBN[1]);
+
 			float TdotV = dot(t, viewDir);
 			float BdotH = dot(b, halfVec);
 			float TdotH = dot(t, halfVec);
@@ -249,8 +251,8 @@ void main(void)
 			float TdotL = dot(t, L);
 			float BdotL = dot(b, L);
 
-			float at = max(roughness * (1.0 + anisotropicIntensity), 0.001);
-			float ab = max(roughness * (1.0 - anisotropicIntensity), 0.001);
+			float at = max(roughness * (1.0 + anisotropyIntensity), 0.001);
+			float ab = max(roughness * (1.0 - anisotropyIntensity), 0.001);
 
 			SpecularDistribution = D_GGX_Anisotropic(at, ab, TdotH, BdotH, NdotH);
 			float Visibility = V_SmithGGXCorrelated_Anisotropic(at, ab, TdotV, BdotV, TdotL, BdotL, NdotV, NdotL);
