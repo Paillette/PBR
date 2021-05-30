@@ -40,8 +40,9 @@ ImColor albedo = ImColor(1.0f, 0.0f, 0.0f);
 float roughness;
 float metallic;
 bool displaySphere = false;
-bool displayIBL = false;
 bool displayAnisotropic = false;
+float lightIntensity;
+ImColor lightColor = ImColor(1.0f, 1.0f, 1.0f);
 
 //Objects
 Mesh* sphereMesh;
@@ -441,8 +442,11 @@ struct Application
 		int32_t locDisplayAnisotropy = glGetUniformLocation(program, "u_displayAnisotropic");
 		glUniform1i(locDisplayAnisotropy, displayAnisotropic);
 
-		int32_t locDisplayIBL = glGetUniformLocation(program, "u_displayIBL");
-		glUniform1i(locDisplayIBL, displayIBL);
+		int32_t locIntensityLight = glGetUniformLocation(program, "u_lightIntensity");
+		glUniform1f(locIntensityLight, lightIntensity);
+
+		int32_t locLightCol = glGetUniformLocation(program, "u_lightColor");
+		glUniform3fv(locLightCol, 1, &lightColor.Value.x);
 
 		for (uint32_t i = 0; i < object->meshCount; i++)
 		{
@@ -594,8 +598,6 @@ void DrawGUI(Application& app)
 		}
 	}
 
-	//Display anisotropic on sphere
-	ImGui::Checkbox("Display Anisotropic", &displayAnisotropic);
 
 
 	if (displaySphere)
@@ -616,9 +618,22 @@ void DrawGUI(Application& app)
 		static float f2 = 0.123f;
 		ImGui::SliderFloat("Metallic", &f2, 0.0f, 1.0f, "%.3f");
 		metallic = f2;
+
+		//Display anisotropic on sphere
+		ImGui::Checkbox("Display Anisotropic", &displayAnisotropic);
 	}
 
-	ImGui::Checkbox("Display fake IBL", &displayIBL);
+	//Directional light
+	static float f3 = 1.f;
+	ImGui::SliderFloat("Intensity directional light", &f3, 0.0f, 10.0f, "%.1f");
+	lightIntensity = f3;
+
+	static float color1[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	if (ImGui::ColorEdit3("Color directional light", color1))
+	{
+		lightColor = ImColor(color1[0], color1[1], color1[2]);
+	}
+
 
 	ImGui::End();
 
@@ -638,7 +653,7 @@ int main(int argc, const char* argv[])
 		return -1;
 
 	/* Create a windowed mode window and its OpenGL context */
-	window = glfwCreateWindow(960, 720, "FBX Viewer (FBO)", NULL, NULL);
+	window = glfwCreateWindow(1260, 960, "PBR viewer", NULL, NULL);
 	if (!window)
 	{
 		glfwTerminate();

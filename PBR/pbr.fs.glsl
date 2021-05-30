@@ -22,19 +22,23 @@ layout(binding = 1) uniform Materials
 };
 
 uniform vec3 u_CameraPosition;
+
+//From UI
 uniform vec3 u_albedo;
 uniform float u_roughness;
 uniform float u_metallic;
 uniform bool u_displaySphere;
-uniform bool u_displayIBL;
 uniform bool u_displayAnisotropic;
-uniform sampler2D brdfLUT;
+uniform float u_lightIntensity;
+uniform vec3 u_lightColor;
 
+//From FBX
 layout(binding = 0) uniform sampler2D u_DiffuseTexture;
 layout(binding = 1) uniform sampler2D u_NormalTexture;
 layout(binding = 2) uniform sampler2D u_ORMTexture;
 layout(binding = 6) uniform sampler2D u_EmissiveTexture;
 
+//IBL
 layout(binding = 3) uniform samplerCube u_cubeMap;
 layout(binding = 4) uniform samplerCube u_radianceCubeMap;
 layout(binding = 5) uniform samplerCube u_irradianceCubeMap;
@@ -102,7 +106,7 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 } 
 
-//------------------------------------------------->IBL
+//-------------------------------------------------> Fake IBL : NOT USE (example below) 
 // https://www.unrealengine.com/en-US/blog/physically-based-shading-on-mobile
 vec3 EnvBRDFApprox(vec3 specularColor, float roughness, float ndotv)
 {
@@ -114,104 +118,12 @@ vec3 EnvBRDFApprox(vec3 specularColor, float roughness, float ndotv)
 	return specularColor * AB.x + AB.y;
 }
 
-vec3 EnvRemap(vec3 c)
-{
-	return pow(2. * c, vec3(2.2));
-}
-
-vec2 hammersley(uint i, uint N) 
-{
-	// Radical inverse based on http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
-	uint bits = (i << 16u) | (i >> 16u);
-	bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
-	bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
-	bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
-	bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
-	float rdi = float(bits) * 2.3283064365386963e-10;
-	return vec2(float(i) /float(N), rdi);
-}
-
-//https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
-vec3 ImportanceSampleGGX(vec2 Xi,float Roughness, vec3 N )
-{
-	float a = Roughness * Roughness;
-	float Phi = 2 * PI * Xi.x;
-	float CosTheta = sqrt( (1 - Xi.y) / ( 1 + (a*a - 1) * Xi.y ) );
-	float SinTheta = sqrt( 1 - CosTheta * CosTheta );
-	vec3 H;
-	H.x = SinTheta *cos( Phi );
-	H.y = SinTheta *sin( Phi );
-	H.z = CosTheta;
-	
-	vec3 UpVector = abs(N.z) < 0.999 ? vec3(0,0,1) : vec3(1,0,0);
-	vec3 TangentX = normalize(cross( UpVector, N ) );
-	vec3 TangentY = cross( N, TangentX );
-	return TangentX * H.x + TangentY * H.y + N * H.z;
-
-}
-
-// From the filament docs. Geometric Shadowing function
-// https://google.github.io/filament/Filament.html#toc4.4.2
-float G_Smith(float NoV, float NoL, float roughness)
-{
-	float k = (roughness * roughness) / 2.0;
-	float GGXL = NoL / (NoL * (1.0 - k) + k);
-	float GGXV = NoV / (NoV * (1.0 - k) + k);
-	return GGXL * GGXV;
-}
-
-vec2 IntegratedBRDF(float Roughness, float NdotV, vec3 N)
-{
-	vec3 V;
-	V.x = sqrt( 1.0 - NdotV * NdotV);
-	V.y = 0.;
-	V.z = NdotV;
-
-	float A = 0;
-	float B = 0;
-
-	const uint NumSamples = 20;
-	
-	for(uint i = 0; i < NumSamples; i++ )
-	{
-		vec2 Xi = hammersley( i, NumSamples );
-		vec3 H = ImportanceSampleGGX( Xi, Roughness, N );
-		vec3 L = 2.0 * dot( V, H ) * H - V;
-
-		float NoL = clamp(dot( N, L ), 0., 1. );
-		float NoH = clamp(dot( N, H ), 0., 1. );
-		float VoH = clamp(dot( V, H ), 0., 1. );
-		
-		//https://www.shadertoy.com/view/3lXXDB
-		if( NoL > 0 )
-		{
-			float G = G_Smith( Roughness, NdotV, NoL );
-			float Fc = pow( 1 - VoH, 5.0 );
-			A += (1.0 - Fc) * G;
-			B += Fc = G;
-		}
-	}
-		return 4.0 * vec2(A, B) / float(NumSamples);
-}
-
-// -------------------------------------------------->OLD BLINN PHONG SHADING
-float BlinnPhong(vec3 N, vec3 L, vec3 V, float shininess)
-{
-	vec3 H = normalize(L + V);
-	return pow(max(0.0, dot(N, H)), shininess);
-}
-
-float Lambert(vec3 N, vec3 L)
-{
-	return max(0.0, dot(N, L));
-}
-
 void main(void)
 {
 //--------------------------------------> Light Pos 
     //(could be passed to shader)
 	vec3 lightPos = normalize(vec3(50, 50., 50.));
-	vec3 lightColor = vec3(5.);
+	vec3 lightColor = u_lightColor * u_lightIntensity;
 	vec3 L = normalize(lightPos - v_Position);
 
 //---------------------------------------> AO / Roughness / Metallic Texture
@@ -277,8 +189,7 @@ void main(void)
 		float attenuation = 1.0 /  pow(dist, 2.0);
 		vec3 radiance = lightColor * attenuation;
 
-		//Tester OrenNayar
-		//Ici lambert
+		//Lambert
 		float NdotH = clamp(dot(N, halfVec), 0., 1.);
 		float NdotL = clamp(dot(N, L), 0., 1.);
 		float VdotH = clamp(dot(viewDir, halfVec), 0., 1.);
@@ -293,15 +204,6 @@ void main(void)
 
 		specularity = ( Fresnel * SpecularDistribution * GeometricFunction )
 		                   / (4.0 * NdotV * NdotL + 0.001);
-	    /*
-		float G_Vis = (GeometricFunction * VdotH) / (NdotH * NdotV);
-
-		//https://google.github.io/filament/Filament.html
-		vec3 energyCompensation = 1.0 + f0 * (1.0 / ((1.0 - Fresnel) * G_Vis) - 1.0);
-		// Scale the specular lobe to account for multiscattering
-		specularity *= max(energyCompensation, vec3(0.));
-        */
-
 		//coefficient
 		vec3 ks = specularity;
 		vec3 kD = vec3(1.0) - ks;
@@ -310,53 +212,29 @@ void main(void)
 		reflectance += ( kD * baseColor / PI + specularity) * radiance * NdotL;
 	}
 
-//---------------------------------------> Cubemap
+//--------------------------------------->specular indirect : IBL
 	vec3 Fresnel = fresnelSchlickRoughness(NdotV, f0, roughness);
+	const float MAX_REFLECTION_LOD = 4.0;
 
-    //radiance and irradiance textures created in a software (cmftStudio) pass to shader 
 	vec3 cubeMap = texture(u_cubeMap, normalize(v_Normal)).rgb;
+    //radiance texture created in a software (cmftStudio) pass to shader : NOT USED HERE
 	vec3 radiance = texture(u_radianceCubeMap, normalize(v_Normal)).rgb;
 	vec3 irradiance = texture(u_irradianceCubeMap, normalize(v_Normal)).rgb;
 
-	//Mix between radiances textures with roughness
-	vec3 env = mix(cubeMap, radiance, clamp(pow(roughness, 2.0) * 4.5, 0., 1.));
+	//Mix between radiances textures with roughness : can be used for simulating non accurate IBL
+	/*vec3 env = mix(cubeMap, radiance, clamp(pow(roughness, 2.0) * 4.5, 0., 1.));
 	env = mix(env, irradiance, clamp((pow(roughness, 2.0)), 0., 1.));
-	vec3 envBRDF = EnvBRDFApprox(vec3(0.01), pow(roughness, 2.0), NdotV);
+	vec3 envBRDF = EnvBRDFApprox(vec3(0.01), pow(roughness, 2.0), NdotV);*/
 
-	float amountIBL = 0.3;
-	vec3 specular = vec3(0.0);
-	//Fake IBL
-	if(u_displayIBL)
-		specular = (env * ( Fresnel * envBRDF.x + envBRDF.y)) * amountIBL;
-//--------------------------------------->IBL
-	const float MAX_REFLECTION_LOD = 4.0;
     vec3 prefilteredColor = textureLod(u_prefilteredmap, R,  roughness * MAX_REFLECTION_LOD).rgb;    
     vec2 brdf  = texture(u_brdfLUT, vec2(max(dot(N, viewDir), 0.0), roughness)).rg;
-    specular = prefilteredColor * (Fresnel * brdf.x + brdf.y);
+    vec3 specular = prefilteredColor * (Fresnel * brdf.x + brdf.y);
 
-	/*
-	//https://google.github.io/filament/Filament.html
-	vec3 energyCompensation = 1.0 + f0 * (1.0 / brdf.x - 1.0);
-	// Scale the specular lobe to account for multiscattering
-	specular *= energyCompensation;
-	*/
-//--------------------------------------->DiffuseColor
+//--------------------------------------->indirect diffuse
 	vec3 diffuse = baseColor;
 	vec3 indirectDiffuse = irradiance;
 	diffuse *= indirectDiffuse;
 
-	if(!u_displaySphere)
-		amountIBL = 0.02;
-
-	//Fake IBL
-	/*if(u_displayIBL)
-	{
-		diffuse = irradiance * baseColor;
-		ambient = (kD * diffuse + specular) * amountIBL;
-
-	}*/
-
-	//coefficient => multiple scattering dans indiffuse lighting
 	vec3 ks = specular;
 	vec3 kD = vec3(1.0) - ks;
 	kD *= 1.0 - metallic;
@@ -364,8 +242,7 @@ void main(void)
 	vec3 ambient = (kD * diffuse + specular) * AO;
 	vec3 color = ambient + ( reflectance * PI );
 
-
-	//emissive
+//-------------------------------------->emissive
 	vec3 emissive = texture(u_EmissiveTexture, v_TexCoords).rgb;
 	//Need to be multiply by emissiveIntensity
 	emissive *= 10.;
@@ -377,7 +254,7 @@ void main(void)
 	//gamma correction 
 	color = pow(color, vec3(1.0 / 2.2));
 
-	//Bloom
+	//Bloom : NOT USED YET
 	float brightness = dot(color, vec3(0.21, 0.71, 0.072));
 	if(brightness > 1.0)
 		o_BrightnessColor = vec4(color, 1.0);
