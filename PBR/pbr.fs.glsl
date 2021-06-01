@@ -4,6 +4,7 @@ in vec3 v_Position;
 in vec3 v_Normal;
 in vec2 v_TexCoords;
 in mat3 v_TBN; 
+in vec3 v_Tangent;
 
 layout(location = 0) out vec4 o_FragColor;
 layout(location = 1) out vec4 o_BrightnessColor;
@@ -237,12 +238,10 @@ void main(void)
 		//------------------------------------------------------------------------> anisotropy
 		if(u_displayAnisotropic)
 		{
-			//vec3 anisotropicDirection = vec3(1.0, 0.0, 0.0);
-			//vec3 t = normalize(v_TBN * anisotropicDirection);
-			//vec3 b = normalize(cross(v_Normal, t));
-			
-			vec3 t = normalize(v_TBN[0]);
-			vec3 b = normalize(v_TBN[1]);
+			vec3 anisotropicDirection = vec3(1.0, 0.0, 0.0);
+
+			vec3 t = normalize(TBNnormal() * anisotropicDirection);
+			vec3 b = normalize(cross(v_Normal, t));
 
 			float TdotV = dot(t, viewDir);
 			float BdotH = dot(b, halfVec);
@@ -310,7 +309,6 @@ void main(void)
 		o_BrightnessColor = vec4(color, 1.0);
 	else
 		o_BrightnessColor = vec4(1., 0., 0., 1.);
-	
 	
 	o_FragColor = vec4(color, 1.0);
 }

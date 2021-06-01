@@ -16,11 +16,12 @@ out vec3 v_Position;
 out vec3 v_Normal;
 out vec2 v_TexCoords;
 out mat3 v_TBN;
+out vec3 v_Tangent;
 
 void main(void)
 {
 	v_TexCoords = vec2(a_TexCoords.x, 1.0 - a_TexCoords.y);
-
+	v_Tangent = a_Tangent;
 	v_Position = vec3(u_WorldMatrix * vec4(a_Position, 1.0));
 	v_Normal = mat3(u_WorldMatrix) * a_Normal;
 	
