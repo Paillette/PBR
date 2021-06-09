@@ -624,10 +624,10 @@ void DrawGUI(Application& app)
 		metallic = f2;
 
 		//Display anisotropic on sphere
-		ImGui::Checkbox("Display Anisotropic", &displayAnisotropic);
+		ImGui::Checkbox("Display Textures", &displayAnisotropic);
 
 		static float f3 = anisotropyIntensity;
-		ImGui::SliderFloat("Anisotropy Intensity", &f3, -1.0f, 1.0f, "%.3f");
+		ImGui::SliderFloat("Anisotropy Intensity WIP", &f3, -1.0f, 1.0f, "%.3f");
 		anisotropyIntensity = f3;
 	}
 

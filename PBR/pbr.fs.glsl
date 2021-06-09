@@ -235,8 +235,8 @@ void main(void)
 		kD *= 1.0 - metallic;
 
 		reflectance += ( kD * baseColor / PI + specularity) * radiance * NdotL;
-		//------------------------------------------------------------------------> anisotropy
-		if(u_displayAnisotropic)
+		//------------------------------------------------------------------------> anisotropy WIP
+		/*if(u_displayAnisotropic)
 		{
 			vec3 anisotropicDirection = vec3(1.0, 0.0, 0.0);
 
@@ -258,7 +258,7 @@ void main(void)
 			Fresnel = fresnelSchlick(LdotH, f0);
 
 			reflectance = SpecularDistribution * Visibility * Fresnel;
-		}
+		}*/
 	}
 
 //--------------------------------------->specular indirect : IBL
