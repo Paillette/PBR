@@ -1,6 +1,6 @@
 # Physically Based Rendering
 
-Physically based rendering with Image Based Lighting and directional lighting in OpenGL 
+Simple physically based rendering with Image Based Lighting and directional lighting in OpenGL 
 
 3D model by McCarthy : https://www.artstation.com/shadowdragon811
 
